@@ -56,8 +56,8 @@
         // Tables - format: table=x1,y1;x2,y2;x3,y3
         const tableData = params.get('table');
         if (tableData) {
-            const points = tableData.split(';').map(pair => {
-                const [x, y] = pair.split(',');
+            const points = tableData.trim().split(';').map(pair => {
+                const [x, y] = pair.trim().split(',');
                 return { x: parseFloat(x), y: parseFloat(y) };
             });
             
@@ -72,14 +72,21 @@
                 id: 'table_y',
                 latex: `y_1=[${yValues}]`
             });
+            
+            // Plot the points (x_1, y_1)
+            calculator.setExpression({
+                id: 'table_points',
+                latex: `(x_1,y_1)`,
+                pointStyle: Desmos.Styles.POINT
+            });
         }
 
-        // Regression - format: regression=y1~mx1+b or regression=y1~ab^{x1}+c
+        // Regression - pass exactly as provided in URL (don't modify)
         const regression = params.get('regression');
         if (regression) {
             calculator.setExpression({
                 id: 'regression',
-                latex: regression
+                latex: decodeURIComponent(regression)
             });
         }
 
