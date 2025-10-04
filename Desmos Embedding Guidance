@@ -1,0 +1,485 @@
+# Complete AI Instructions: Desmos Graph Builder for HackMD (Final Version)
+
+## Base Information
+
+**Desmos Builder URL:** `https://broth11.github.io/desmos-tools/desmos-tools.html`
+
+**Version:** Using Desmos API v1.11 with inference menu support
+
+**Output Format:** Always generate a complete `<iframe>` tag ready to paste into HackMD.
+
+---
+
+## Complete Parameters Reference
+
+### Core Expression Parameters
+- `expr=` - Mathematical expression(s). Multiple expressions separated by `;`
+- **CRITICAL:** Define functions BEFORE using them in other expressions
+
+### Table & Data Parameters
+- `table=x1,y1;x2,y2;x3,y3` - Data points for plotting
+- `labels=Label1;Label2;Label3` - Text labels for each point (optional)
+- `regression=` - Regression equation (use with table data)
+
+### View Control
+- `hideExpressions=true/false` - Hide/show expression panel
+- `lockViewport=true/false` - Lock/unlock zoom and pan
+- `settings=true/false` - Show/hide settings menu
+- `zoom=true/false` - Show/hide zoom buttons
+
+### Grid Control
+- `showGrid=false` - Hide all grid lines completely
+- `majorGridOnly=true` - Show major grid lines only (hide minor subdivisions)
+
+### Bounds (Highly Recommended)
+- `xmin=` `xmax=` - X-axis range
+- `ymin=` `ymax=` - Y-axis range
+
+### Axis Settings
+- `angleMode=degrees` or `angleMode=radians` - Trig mode (default: radians)
+- `polarMode=true` - Switch to polar coordinates
+- `xAxisLog=true` - Logarithmic x-axis
+- `yAxisLog=true` - Logarithmic y-axis
+- `xAxisNumbers=false` - Hide x-axis numbers
+- `yAxisNumbers=false` - Hide y-axis numbers
+- `fontSize=16` - Text size (default ~12-16)
+
+### Tick Marks & Scaling
+- `scale=100` - Zoom percentage (100=normal, 150=zoomed out, 50=zoomed in)
+- `piStep=4` - π-based ticks (4=π/4, 2=π/2, etc.)
+- `xstep=1` - Exact x-axis tick spacing
+- `ystep=1` - Exact y-axis tick spacing
+
+**Note:** Don't use both `piStep` and `xstep` together
+
+### iframe Physical Size
+- `width="500"` - Width in pixels
+- `width="100%"` - Full width (responsive)
+- `height="400"` - Height in pixels
+
+---
+
+## Expression Syntax
+
+### Functions
+- Simple: `f(x)=x^2`
+- Trig: `f(x)=\sin(2x)` or `f(x)=\cos(x)`
+- Domain restriction: `f(x)=\sin(x)\{0<x<3.14\}`
+
+### Expression Ordering (CRITICAL)
+**Always define functions BEFORE using them:**
+
+✅ **CORRECT:**
+```
+expr=f(x)=\sin(2x);0\le y\le f(x)
+```
+
+❌ **WRONG:**
+```
+expr=0\le y\le f(x);f(x)=\sin(2x)
+```
+
+**Alternative:** Put domain on inequality instead:
+```
+expr=f(x)=\sin(2x);0\le y\le f(x)\{0<x<1.57\}
+```
+
+### Multiple Expressions
+Separate with `;`:
+```
+expr=f(x)=x^2;g(x)=2x%2B1;y=5
+```
+
+### Inequalities/Shading
+- Above: `y\ge f(x)`
+- Below: `y\le f(x)`
+- Between: `0\le y\le f(x)`
+- With domain: `0\le y\le f(x)\{0<x<5\}`
+
+### Sliders
+```
+expr=f(x)=ax^2;a=1[-3,3,0.1]
+```
+Format: `var=default[min,max,step]`
+
+---
+
+## Tables & Regression
+
+### Table Format
+```
+table=1,5;2,8;3,11;4,14;5,17
+```
+- Semicolons separate points
+- Commas separate x,y coordinates
+- Spaces before/after are handled automatically
+- Creates lists: x₁=[1,2,3,4,5], y₁=[5,8,11,14,17]
+- Plots points automatically
+
+### Labels (Optional)
+```
+labels=A;B;C;D;E
+labels=Start;Middle;End
+labels=Jan;Feb;Mar;Apr;May
+```
+- One label per data point
+- Appears next to each point
+- Use any text string
+- Separate with semicolons
+- If no labels provided, points appear as unlabeled dots
+
+### Regression Equations
+**IMPORTANT:** Use URL encoding for operators:
+- `+` → `%2B`
+- `-` → `%2D`
+
+**Common regression types:**
+```
+regression=y_1~mx_1%2Bb                    (linear)
+regression=y_1~ax_1^2%2Bbx_1%2Bc          (quadratic)
+regression=y_1~ab^{x_1}                    (exponential)
+regression=y_1~ab^{x_1}%2Bc               (exponential with shift)
+regression=y_1~a\ln(x_1)%2Bb              (logarithmic)
+regression=y_1~\frac{a}{x_1}%2Bb          (rational)
+```
+
+---
+
+## Grid Control Guidelines
+
+### Use Cases:
+
+**No grid (clean, minimal):**
+```
+showGrid=false
+```
+Use for: Presentations, focusing on function shape without distraction
+
+**Major grid only (clear reference lines):**
+```
+majorGridOnly=true
+```
+Use for: Teaching, when you want clear spacing but not cluttered with minor lines
+
+**Full grid (default):**
+Don't specify any grid parameter
+Use for: Precise reading, student work, detailed analysis
+
+### Examples:
+
+**Clean presentation (no grid):**
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?expr=f(x)=\sin(x)&showGrid=false&hideExpressions=true&lockViewport=true" width="500" height="400" frameborder="0"></iframe>
+```
+
+**Teaching with major grid only:**
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?expr=f(x)=x^2&majorGridOnly=true&xmin=-5&xmax=5&ymin=-5&ymax=5" width="500" height="400" frameborder="0"></iframe>
+```
+
+---
+
+## URL Encoding Quick Reference
+
+### Required Encodings
+- `+` → `%2B` (plus sign)
+- `-` → `%2D` (minus sign in some contexts)
+- Space → `%20` (or use `+` for spaces in URLs)
+- `<` → `%3C`
+- `>` → `%3E`
+
+### LaTeX Symbols (usually work as-is)
+- `\pi` `\theta` `\alpha` etc.
+- `^` for exponents
+- `\sqrt{}` `\frac{}{}`
+- `\le` `\ge`
+- `\{` `\}` for domain restrictions
+
+---
+
+## Sizing Guidelines
+
+### Standard Sizes:
+- **Default:** `width="500" height="400"`
+- **Wide:** `width="700" height="400"`
+- **Tall:** `width="500" height="500"`
+- **Large:** `width="700" height="500"`
+- **Full width:** `width="100%" height="500"`
+- **Compact:** `width="400" height="350"`
+
+### Use Case Sizing:
+- Standard lesson: 500×400
+- Important/detailed: 700×500
+- Side-by-side: 400×400
+- Mobile-friendly: 100%×400
+- Data visualization with table: 700×500
+
+---
+
+## Complete Examples
+
+### Example 1: Trig Function with Area (Clean Grid)
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?expr=f(x)=\sin(2x);0\le y\le f(x)\{0<x<1.57\}&hideExpressions=false&lockViewport=true&settings=false&zoom=false&majorGridOnly=true&piStep=4&xmin=-0.5&xmax=2&ymin=-0.5&ymax=1.5" width="600" height="450" frameborder="0"></iframe>
+```
+
+### Example 2: Data Table with Linear Regression (No Grid)
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?table=1,5;2,8;3,11;4,14;5,17&regression=y_1~mx_1%2Bb&showGrid=false&hideExpressions=false&xmin=0&xmax=6&ymin=0&ymax=20" width="600" height="500" frameborder="0"></iframe>
+```
+
+### Example 3: Labeled Data Points (Major Grid)
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?table=0,32;10,50;20,68;30,86;40,104&labels=Freezing;Cool;Room;Warm;Hot&regression=y_1~mx_1%2Bb&majorGridOnly=true&xmin=-5&xmax=45&ymin=20&ymax=110" width="700" height="500" frameborder="0"></iframe>
+```
+
+### Example 4: Quadratic Regression (Full Grid)
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?table=1,6;2,15;3,28;4,45;5,66&labels=A;B;C;D;E&regression=y_1~ax_1^2%2Bbx_1%2Bc&hideExpressions=false&xmin=0&xmax=6&ymin=0&ymax=70" width="600" height="500" frameborder="0"></iframe>
+```
+
+### Example 5: Function Comparison (No Grid, Clean)
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?expr=f(x)=\sin(x);g(x)=2\sin(x)&showGrid=false&hideExpressions=true&lockViewport=true&settings=false&zoom=false&piStep=2&xmin=0&xmax=6.28&ymin=-2.5&ymax=2.5" width="600" height="400" frameborder="0"></iframe>
+```
+
+### Example 6: Parabola with Slider (Major Grid Only)
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?expr=f(x)=ax^2;a=1[-3,3,0.1]&majorGridOnly=true&hideExpressions=false&xmin=-5&xmax=5&ymin=-10&ymax=10" width="700" height="500" frameborder="0"></iframe>
+```
+
+### Example 7: Log Scale (Major Grid)
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?expr=f(x)=2^x&yAxisLog=true&majorGridOnly=true&hideExpressions=true&lockViewport=true&xmin=-2&xmax=10&ymin=0.1&ymax=1000" width="600" height="450" frameborder="0"></iframe>
+```
+
+---
+
+## Decision Tree for Graph Creation
+
+### Step 1: Determine Purpose & Visual Style
+- **Clean presentation** → `showGrid=false&hideExpressions=true&lockViewport=true`
+- **Teaching with clear grid** → `majorGridOnly=true&hideExpressions=false`
+- **Detailed student work** → Full grid (default), `hideExpressions=false`
+- **Data analysis** → Use tables + regression, `majorGridOnly=true`
+
+### Step 2: Choose Content Type
+- **Functions only** → Use `expr=`
+- **Data points** → Use `table=` + optional `labels=`
+- **Data + trend** → Add `regression=`
+- **Interactive** → Add sliders
+
+### Step 3: Set Appropriate Bounds
+- Look at domain/range
+- Add 10-20% padding
+- For trig: 0 to 2π or -π to π
+- For data: min/max of data ± margin
+
+### Step 4: Configure Axes & Grid
+- **Trig functions** → `angleMode=degrees` or `piStep=4`, consider `majorGridOnly=true`
+- **Exponential/log** → Consider `yAxisLog=true`
+- **Clean presentation** → `showGrid=false`
+- **Teaching** → `majorGridOnly=true`
+- **Standard** → `xstep=1&ystep=1`
+
+### Step 5: Size Appropriately
+- Standard: 500×400
+- Important: 700×500
+- Full width: 100%×500
+- Data-heavy: 700×500
+
+### Step 6: Order Expressions
+1. Define all functions first
+2. Then inequalities/shading
+3. Then points
+4. Then labels/annotations
+
+---
+
+## Quality Checklist
+
+Before outputting, verify:
+- [ ] **Expressions in correct order** (functions before use)
+- [ ] **Plus signs URL-encoded** (`%2B` not `+`)
+- [ ] **Bounds set appropriately**
+- [ ] **Grid setting appropriate** for use case
+- [ ] **Tick marks appropriate** for context
+- [ ] **View settings match purpose**
+- [ ] **iframe size specified**
+- [ ] **Table format correct** (semicolons, commas)
+- [ ] **Label count matches** data point count (if using labels)
+- [ ] **Regression syntax correct**
+- [ ] **Complete iframe tag** with all attributes
+
+---
+
+## Common Patterns
+
+### Pattern: Area Under Curve (Clean Grid)
+```
+expr=f(x)=FUNCTION;0\le y\le f(x)\{DOMAIN\}
+hideExpressions=false
+majorGridOnly=true
+piStep=4 (for trig)
+```
+
+### Pattern: Data Analysis (Major Grid)
+```
+table=x1,y1;x2,y2;...
+labels=L1;L2;...
+regression=y_1~EQUATION
+majorGridOnly=true
+hideExpressions=false
+```
+
+### Pattern: Function Comparison (No Grid)
+```
+expr=f(x)=FUNC1;g(x)=FUNC2
+showGrid=false
+hideExpressions=false
+```
+
+### Pattern: Interactive Exploration (Major Grid)
+```
+expr=f(x)=FUNC_WITH_a;a=default[min,max,step]
+majorGridOnly=true
+hideExpressions=false
+lockViewport=false
+```
+
+### Pattern: Clean Presentation (No Grid)
+```
+expr=FUNCTION
+showGrid=false
+hideExpressions=true
+lockViewport=true
+settings=false
+zoom=false
+```
+
+---
+
+## Error Prevention
+
+### Common Mistakes to Avoid:
+1. **Wrong expression order** - Always define functions first
+2. **Forgetting URL encoding** - Use `%2B` for `+`, `%2D` for `-`
+3. **Missing iframe dimensions** - Always specify width and height
+4. **Bounds too tight** - Add padding around data/function
+5. **Using `piStep` with `xstep`** - Choose one
+6. **Wrong separator** - Use `;` for expressions, `,` for coordinates
+7. **Missing braces** - Domain restrictions need `\{` and `\}`
+8. **Label mismatch** - Number of labels must equal number of points
+9. **Regression without table** - Regression needs `table=` data
+10. **Not choosing grid setting** - Consider visual purpose
+
+### Debugging Tips:
+- If function doesn't appear: check expression order
+- If + signs missing: check URL encoding (`%2B`)
+- If points don't show: verify table format
+- If labels missing: count matches data points
+- If regression fails: check URL encoding and subscripts
+- If grid looks wrong: verify `showGrid` vs `majorGridOnly` usage
+
+---
+
+## Output Format Template
+
+Always provide:
+
+1. **Complete iframe code** (copy-paste ready)
+2. **Brief description** of what it shows
+3. **Key features** noted
+
+**Example:**
+```html
+<iframe src="https://broth11.github.io/desmos-tools/desmos-tools.html?table=1,5;2,8;3,11;4,14;5,17&labels=A;B;C;D;E&regression=y_1~mx_1%2Bb&majorGridOnly=true&hideExpressions=false&xmin=0&xmax=6&ymin=0&ymax=20" width="600" height="500" frameborder="0"></iframe>
+```
+
+**Description:** Linear regression with 5 labeled data points (A through E). Shows regression equation y₁~mx₁+b with calculated slope and intercept. Major grid lines only for clarity. Expression panel visible for student analysis.
+
+**Features:** Table data, point labels, linear regression, major grid only, 600×500 size
+
+---
+
+## Full Parameter Summary
+
+```
+EXPRESSIONS & DATA:
+  expr=           (functions/equations, semicolon separated)
+  table=          (data points: x1,y1;x2,y2;...)
+  labels=         (point labels: L1;L2;L3;...)
+  regression=     (regression equation with URL encoding)
+
+VIEW CONTROL:
+  hideExpressions=true/false
+  lockViewport=true/false
+  settings=true/false
+  zoom=true/false
+
+GRID CONTROL:
+  showGrid=false         (hide all grid lines)
+  majorGridOnly=true     (show major grid only, hide minor)
+
+BOUNDS:
+  xmin=, xmax=, ymin=, ymax=
+
+AXIS SETTINGS:
+  angleMode=degrees/radians
+  polarMode=true/false
+  xAxisLog=true/false
+  yAxisLog=true/false
+  xAxisNumbers=true/false
+  yAxisNumbers=true/false
+  fontSize=number
+
+TICKS & SCALE:
+  scale=percentage (100=normal)
+  piStep=number (π-based)
+  xstep=number
+  ystep=number
+
+IFRAME:
+  width="pixels" or "100%"
+  height="pixels"
+  frameborder="0"
+```
+
+---
+
+## Grid Control Decision Guide
+
+**Choose grid setting based on purpose:**
+
+| Purpose | Grid Setting | Why |
+|---------|-------------|-----|
+| Final presentation | `showGrid=false` | Clean, focus on function |
+| Teaching concepts | `majorGridOnly=true` | Clear reference without clutter |
+| Student practice | Full grid (default) | Easier to read precise values |
+| Data visualization | `majorGridOnly=true` | Balance clarity and precision |
+| Minimalist design | `showGrid=false` | Modern, sleek appearance |
+| Graphing practice | Full grid (default) | Students need reference lines |
+
+---
+
+## Notes on Desmos v1.11 Features
+
+**What's accessible:**
+- All standard graphing features
+- Tables and data visualization
+- Regression calculations
+- Sliders and parameters
+- Full grid control (all/major/none)
+
+**What's NOT accessible via URL:**
+- **Inference menu** (hypothesis testing, t-tests, etc.) - requires manual UI interaction
+- **Statistics calculator** - interactive feature only
+- Advanced formatting options
+- Custom colors (uses Desmos defaults)
+- Minor grid control independently (only major grid control available)
+
+**For statistical inference work:** Direct students to create graphs manually on Desmos.com where they can access the full inference tools.
+
+---
+
+**This is the complete, final reference. All features documented, all parameters explained, all examples provided, including full grid control options.**
