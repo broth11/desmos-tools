@@ -19,7 +19,9 @@
             {
                 expressionsCollapsed: params.get('hideExpressions') === 'true',
                 settingsMenu: params.get('settings') !== 'false',
-                zoomButtons: params.get('zoom') !== 'false'
+                zoomButtons: params.get('zoom') !== 'false',
+                expressions: params.get('showExpressions') !== 'false',
+                lockViewport: params.get('lockViewport') === 'true'
             }
         );
 
@@ -32,7 +34,7 @@
             
             exprList.forEach((expr, index) => {
                 // Check if it's a slider (contains bounds)
-                const sliderMatch = expr.match(/(.+)=(.+)\[(.+),(.+)\]/);
+                const sliderMatch = expr.match(/(.+)=(.+)\[(.+),(.+)(?:,(.+))?\]/);
                 
                 if (sliderMatch) {
                     // It's a slider: a=1[-3,3]
@@ -41,7 +43,8 @@
                         latex: `${sliderMatch[1]}=${sliderMatch[2]}`,
                         sliderBounds: {
                             min: parseFloat(sliderMatch[3]),
-                            max: parseFloat(sliderMatch[4])
+                            max: parseFloat(sliderMatch[4]),
+                            step: sliderMatch[5] ? parseFloat(sliderMatch[5]) : undefined
                         }
                     });
                 } else {
@@ -61,6 +64,26 @@
                 right: parseFloat(params.get('xmax')),
                 bottom: parseFloat(params.get('ymin')),
                 top: parseFloat(params.get('ymax'))
+            });
+        }
+
+        // Set tick step (grid spacing)
+        const xstep = params.get('xstep');
+        const ystep = params.get('ystep');
+        
+        if (xstep || ystep) {
+            calculator.updateSettings({
+                xAxisStep: xstep ? parseFloat(xstep) : undefined,
+                yAxisStep: ystep ? parseFloat(ystep) : undefined
+            });
+        }
+
+        // Special handling for pi-based steps
+        const piStep = params.get('piStep');
+        if (piStep) {
+            const step = Math.PI / parseFloat(piStep);
+            calculator.updateSettings({
+                xAxisStep: step
             });
         }
     </script>
