@@ -160,20 +160,14 @@
             });
         }
 
-        // Grid control
-            if (params.get('showGrid') === 'false') {
-                calculator.updateSettings({ showGrid: false });
-            }
-            
-            // Minor grid lines (Desmos may not support this directly via API)
-            // But we can try setting grid opacity/style
-            if (params.get('minorGrid') === 'false') {
-                calculator.updateSettings({ 
-                    showGrid: true,
-                    xAxisMinorSubdivisions: 0,
-                    yAxisMinorSubdivisions: 0
-                });
-            }
+        // Grid control - major only (no minor grid lines)
+if (params.get('majorGridOnly') === 'true') {
+    calculator.updateSettings({ 
+        showGrid: true,
+        xAxisMinorSubdivisions: 1,
+        yAxisMinorSubdivisions: 1
+    });
+}
     </script>
 </body>
 </html>
