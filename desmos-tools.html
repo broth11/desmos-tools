@@ -80,6 +80,31 @@
                 pointStyle: Desmos.Styles.POINT
             });
         }
+        // Labels - format: labels=Label1;Label2;Label3
+            const labels = params.get('labels');
+            if (labels && tableData) {
+                const labelList = labels.split(';');
+                const points = tableData.trim().split(';').map((pair, index) => {
+                    const [x, y] = pair.trim().split(',');
+                    return { x: parseFloat(x), y: parseFloat(y), label: labelList[index] };
+                });
+                
+                // Remove the generic points expression
+                calculator.removeExpression({ id: 'table_points' });
+                
+                // Add individual labeled points
+                points.forEach((point, index) => {
+                    if (point.label) {
+                        calculator.setExpression({
+                            id: `labeled_point_${index}`,
+                            latex: `(${point.x},${point.y})`,
+                            label: point.label,
+                            showLabel: true,
+                            pointStyle: Desmos.Styles.POINT
+                        });
+                    }
+                });
+            }
 
         // Regression - pass exactly as provided in URL (don't modify)
         const regression = params.get('regression');
