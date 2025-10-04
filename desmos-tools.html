@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://www.desmos.com/api/v1.9/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #calculator { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="calculator"></div>
+    <script>
+        // Parse URL parameters
+        const params = new URLSearchParams(window.location.search);
+        
+        // Create calculator
+        const calculator = Desmos.GraphingCalculator(
+            document.getElementById('calculator'),
+            {
+                expressionsCollapsed: params.get('hideExpressions') === 'true',
+                settingsMenu: params.get('settings') !== 'false',
+                zoomButtons: params.get('zoom') !== 'false'
+            }
+        );
+
+        // Get expressions from URL parameter
+        const expressions = params.get('expr');
+        
+        if (expressions) {
+            // Split by semicolon to get multiple expressions
+            const exprList = expressions.split(';');
+            
+            exprList.forEach((expr, index) => {
+                // Check if it's a slider (contains bounds)
+                const sliderMatch = expr.match(/(.+)=(.+)\[(.+),(.+)\]/);
+                
+                if (sliderMatch) {
+                    // It's a slider: a=1[-3,3]
+                    calculator.setExpression({
+                        id: `expr${index}`,
+                        latex: `${sliderMatch[1]}=${sliderMatch[2]}`,
+                        sliderBounds: {
+                            min: parseFloat(sliderMatch[3]),
+                            max: parseFloat(sliderMatch[4])
+                        }
+                    });
+                } else {
+                    // Regular expression
+                    calculator.setExpression({
+                        id: `expr${index}`,
+                        latex: expr.trim()
+                    });
+                }
+            });
+        }
+
+        // Set bounds if provided
+        if (params.get('xmin')) {
+            calculator.setMathBounds({
+                left: parseFloat(params.get('xmin')),
+                right: parseFloat(params.get('xmax')),
+                bottom: parseFloat(params.get('ymin')),
+                top: parseFloat(params.get('ymax'))
+            });
+        }
+    </script>
+</body>
+</html>
