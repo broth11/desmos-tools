@@ -1,134 +1,127 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Desmos Dynamic Builder</title>
-    <script src="https://www.desmos.com/api/v1.10/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
-    <style>
-        body { margin: 0; padding: 0; }
-        #calculator { width: 100vw; height: 100vh; }
-    </style>
+  <meta charset="utf-8" />
+  <title>Desmos Dynamic Builder</title>
+  <script src="https://www.desmos.com/api/v1.10/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
+  <style>
+    body { margin: 0; padding: 0; }
+    #calculator { width: 100vw; height: 100vh; }
+  </style>
 </head>
 <body>
-    <div id="calculator"></div>
-    <script>
-        const elt = document.getElementById('calculator');
-        const calculator = Desmos.GraphingCalculator(elt);
-        const params = new URLSearchParams(window.location.search);
-        const config = params.get('config');
+  <div id="calculator"></div>
+  <script>
+    const elt = document.getElementById('calculator');
+    const calculator = Desmos.GraphingCalculator(elt, {
+      expressions: true,
+      settingsMenu: true,
+      projectorMode: false,
+      zoomButtons: true,
+      expressionsCollapsed: false,
+      keypad: true
+    });
 
-        let exprCounter = 0;
-        function getNextId() { return `expr_${exprCounter++}`; }
+    const params = new URLSearchParams(window.location.search);
+    const config = params.get('config');
 
-        if (config) {
-            const definitions = config.split(';');
-            const dynamicDefs = []; // A list to hold expressions with dependencies
+    // ✅ FIXED: emit a SINGLE backslash; also collapse accidental doubles
+    function toDesmosLatex(s = '') {
+      if (typeof s !== 'string') return s;
 
-            // --- GLOBAL SETTINGS ---
-            let settings = {};
-            const degreeModeDef = definitions.find(d => d.startsWith('degree_mode='));
-            if (degreeModeDef) {
-                settings.degreeMode = (degreeModeDef.split('=')[1] === 'true');
-            }
-            calculator.updateSettings(settings);
+      // If user provided backslashes already, normalize multiple "\" to one
+      s = s.replace(/\\{2,}(?=[a-zA-Z])/g, '\\');
 
-            // --- EXPRESSION HANDLERS ---
-            const featureMap = {
-                slider: (parts) => {
-                    const [name, val, min, max, step] = parts;
-                    calculator.setExpression({
-                        id: getNextId(),
-                        latex: `${name}=${val}`,
-                        slider: { min, max, step, hardMin: true, hardMax: true }
-                    });
-                },
-                point: (parts) => {
-                    const [name, ...coords] = parts;
-                    const isDynamic = coords.some(c => /[a-zA-Z]/.test(c));
-                    
-                    const expr = { id: name, latex: `${name}=(${coords.join(',')})`, showLabel: true };
+      const fns = [
+        'sin','cos','tan','sec','csc','cot',
+        'asin','acos','atan',
+        'sinh','cosh','tanh',
+        'ln','log'
+      ];
+      for (const fn of fns) {
+        // bare fn(  -> \fn(
+        s = s.replace(new RegExp(`(?<!\\\\)\\b${fn}\\s*\\(`, 'g'), '\\' + fn + '(');
+        // any number of leading backslashes -> exactly one
+        s = s.replace(new RegExp(`\\\\+${fn}\\s*\\(`, 'g'), '\\' + fn + '(');
+      }
 
-                    if (isDynamic) {
-                        // If dynamic, don't create it yet. Add it to our waiting list.
-                        dynamicDefs.push(expr);
-                    } else {
-                        calculator.setExpression(expr);
-                    }
-                },
-                segment: (parts) => {
-                    const [p1, p2] = parts;
-                    const expr = {
-                        id: getNextId(),
-                        latex: `((1-t)${p1}.x+t${p2}.x,(1-t)${p1}.y+t${p2}.y)`,
-                        parametricDomain: { min: '0', max: '1' }
-                    };
-                    // Segments are often dynamic, so add them to the waiting list too.
-                    dynamicDefs.push(expr);
-                },
-                expression: (parts) => {
-                     const latex = parts.join(',');
-                     const isDynamic = /[a-zA-Z]/.test(latex);
-                     const expr = { id: getNextId(), latex: latex };
-                     
-                     if (isDynamic) {
-                         dynamicDefs.push(expr);
-                     } else {
-                         calculator.setExpression(expr);
-                     }
-                }
-            };
-            
-            // --- MAIN PROCESSING ---
+      // pi -> \pi (when not already escaped)
+      s = s.replace(/(?<!\\)\bpi\b/g, '\\pi');
 
-            // 1. Process only the simple, non-dynamic expressions first.
-            definitions.forEach(def => {
-                try {
-                    const [feature, paramsStr] = def.split('=');
-                    if (feature === 'degree_mode' || !paramsStr) return;
-                    
-                    const paramsArr = paramsStr.split(',');
-                    const handler = featureMap[feature] || featureMap['expression'];
-                    
-                    // Temporarily check if it's dynamic here to decide if we should process now or later.
-                    const isPotentiallyDynamic = feature === 'point' || feature === 'segment' || feature === 'expression';
-                    const isDynamic = isPotentiallyDynamic && paramsStr.match(/[a-zA-Z]/);
+      // sqrt(x) -> \sqrt{x} (basic form)
+      s = s.replace(/(?<!\\)\bsqrt\s*\(\s*([^()]+?)\s*\)/g, '\\sqrt{$1}');
 
-                    if (!isDynamic) {
-                        handler(paramsArr);
-                    }
-                } catch (e) {
-                    console.error("Could not parse definition:", def, e);
-                }
-            });
+      // degree symbol -> ^\circ
+      s = s.replace(/(\^\s*)?°/g, '^\\circ');
 
-            // 2. Set up a one-time listener to process the dynamic expressions.
-            const observer = calculator.observe('change', () => {
-                // Once the calculator has changed (meaning sliders are loaded),
-                // disconnect the observer so this only runs once.
-                observer.disconnect();
+      return s;
+    }
 
-                // Now, process all the expressions that were waiting.
-                definitions.forEach(def => {
-                     try {
-                        const [feature, paramsStr] = def.split('=');
-                        if (feature === 'degree_mode' || !paramsStr) return;
-                        
-                        const paramsArr = paramsStr.split(',');
-                        const handler = featureMap[feature] || featureMap['expression'];
+    // Base state
+    const state = {
+      version: 11,
+      graph: { degreeMode: false }, // radians by default
+      expressions: { list: [] }
+    };
 
-                        const isPotentiallyDynamic = feature === 'point' || feature === 'segment' || feature === 'expression';
-                        const isDynamic = isPotentiallyDynamic && paramsStr.match(/[a-zA-Z]/);
-
-                        if (isDynamic) {
-                            handler(paramsArr);
-                        }
-                    } catch (e) {
-                        console.error("Could not parse dynamic definition:", def, e);
-                    }
-                });
-
-                console.log("Dynamic expressions loaded.");
-            });
+    if (config) {
+      const featureMap = {
+        slider(parts) {
+          const [name, val, min, max, step] = parts;
+          return {
+            type: 'expression',
+            latex: `${name}=${val}`,
+            slider: { min, max, step, hardMin: true, hardMax: true }
+          };
+        },
+        point(parts) {
+          const [name, ...coords] = parts;
+          const [x = '', y = ''] = coords;
+          return {
+            type: 'expression',
+            latex: `${name}=(${toDesmosLatex(x)},${toDesmosLatex(y)})`,
+            showLabel: true
+          };
+        },
+        segment(parts) {
+          const [p1, p2] = parts;
+          return {
+            type: 'expression',
+            latex: `((1-t)${p1}.x+t${p2}.x,(1-t)${p1}.y+t${p2}.y)`,
+            parametricDomain: { min: '0', max: '1' }
+          };
+        },
+        expression(parts) {
+          const raw = parts.join(',');
+          return { type: 'expression', latex: toDesmosLatex(raw) };
         }
-    </script>
+      };
+
+      const definitions = config.split(';');
+      definitions.forEach(def => {
+        try {
+          const [feature, paramsStr] = def.split('=');
+
+          // global setting
+          if (feature === 'degree_mode') {
+            state.graph.degreeMode = (paramsStr === 'true');
+            return;
+          }
+
+          const paramsArr = paramsStr.split(',');
+          const handler = featureMap[feature] || featureMap['expression'];
+          const expressionObject = handler(paramsArr);
+          state.expressions.list.push(expressionObject);
+        } catch (e) {
+          console.error('Could not parse definition:', def, e);
+        }
+      });
+
+      requestAnimationFrame(() => {
+        calculator.setState(state);
+        console.log('Desmos state loaded from config.', state);
+      });
+    }
+  </script>
 </body>
 </html>
