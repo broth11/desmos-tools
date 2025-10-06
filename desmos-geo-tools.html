@@ -11,12 +11,10 @@
 <body>
     <div id="geometry"></div>
     <script>
+        // Initialize Desmos and URL parser
         const params = new URLSearchParams(window.location.search);
         const geometry = Desmos.Geometry(document.getElementById('geometry'));
 
-        // --- BATCH PROCESSING SETUP ---
-        // We will add all expression objects to this array first.
-        const expressions = [];
         let exprCounter = 0;
 
         // === HELPER FUNCTIONS ===
@@ -38,78 +36,95 @@
 
         // === DEFAULTS & INITIAL SETUP ===
         if (params.get('hide_origin') !== 'true') {
-            expressions.push({ id: 'origin', latex: 'O=(0,0)', label: 'O', showLabel: true, color: Desmos.Colors.BLACK, pointStyle: Desmos.Styles.OPEN });
+            geometry.setExpression({ id: 'origin', latex: 'O=(0,0)', label: 'O', showLabel: true, color: Desmos.Colors.BLACK, pointStyle: Desmos.Styles.OPEN });
         }
 
         // === SLIDERS & DYNAMIC VARIABLES ===
+        // FINAL "PRIMING" SLIDER HANDLER
         processParameter('slider', (parts) => {
             const [name, val, min, max, step] = parts;
-            expressions.push({
-                id: getNextId(`slider_${name}`),
-                latex: `${name}=${parseFloat(val)}`,
-                slider: { min: parseFloat(min), max: parseFloat(max), step: parseFloat(step) }
+            const sliderId = `slider_${name}_${getNextId()}`;
+
+            // Step 1: Create a simple placeholder expression.
+            geometry.setExpression({
+                id: sliderId,
+                latex: `${name}=0`
             });
+
+            // Step 2: After a minimal delay, overwrite the placeholder with the full definition.
+            setTimeout(() => {
+                geometry.setExpression({
+                    id: sliderId, // Use the same ID to overwrite
+                    latex: `${name}=${parseFloat(val)}`,
+                    slider: {
+                        min: parseFloat(min),
+                        max: parseFloat(max),
+                        step: parseFloat(step)
+                    }
+                });
+            }, 1); // 1ms delay
         });
 
         processParameter('expression', (parts, originalItem) => {
-            expressions.push({ id: getNextId('expression'), latex: originalItem });
+            geometry.setExpression({ id: getNextId('expression'), latex: originalItem });
         });
 
         // === POINT DEFINITIONS ===
         processParameter('point', (parts) => {
             const [name, x, y] = parts;
-            expressions.push({ id: `point_${name}`, latex: `${name}=(${x},${y})`, label: name, showLabel: true, color: Desmos.Colors.RED });
+            geometry.setExpression({ id: `point_${name}`, latex: `${name}=(${x},${y})`, label: name, showLabel: true, color: Desmos.Colors.RED });
         });
         
         processParameter('gpoint', (parts) => {
-            const [name, xExpr, yExpr] = parts;
-            expressions.push({ id: `gpoint_${name}`, latex: `${name}=(${xExpr},${yExpr})`, label: name, showLabel: true, color: Desmos.Colors.PURPLE });
+            setTimeout(() => {
+                const [name, xExpr, yExpr] = parts;
+                geometry.setExpression({
+                    id: `gpoint_${name}`,
+                    latex: `${name}=(${xExpr},${yExpr})`,
+                    label: name,
+                    showLabel: true,
+                    color: Desmos.Colors.PURPLE
+                });
+            }, 10);
         });
 
         // === LINES, SEGMENTS, VECTORS ===
-        processParameter('line', (parts) => expressions.push({ id: getNextId('line'), latex: `\\operatorname{line}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
-        processParameter('segment', (parts) => expressions.push({ id: getNextId('segment'), latex: `\\operatorname{segment}(${parts[0]},${parts[1]})`, color: Desmos.Colors.GREEN }));
-        processParameter('ray', (parts) => expressions.push({ id: getNextId('ray'), latex: `\\operatorname{ray}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
-        processParameter('vector', (parts) => expressions.push({ id: getNextId('vector'), latex: `\\operatorname{vector}(${parts[0]},${parts[1]})`, color: Desmos.Colors.PURPLE }));
+        processParameter('line', (parts) => geometry.setExpression({ id: getNextId('line'), latex: `\\operatorname{line}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
+        processParameter('segment', (parts) => geometry.setExpression({ id: getNextId('segment'), latex: `\\operatorname{segment}(${parts[0]},${parts[1]})`, color: Desmos.Colors.GREEN }));
+        processParameter('ray', (parts) => geometry.setExpression({ id: getNextId('ray'), latex: `\\operatorname{ray}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
+        processParameter('vector', (parts) => geometry.setExpression({ id: getNextId('vector'), latex: `\\operatorname{vector}(${parts[0]},${parts[1]})`, color: Desmos.Colors.PURPLE }));
 
         // === GEOMETRIC CONSTRUCTIONS ===
-        processParameter('midpoint', ([name, p1, p2]) => expressions.push({ id: getNextId('midpoint'), latex: `${name}=\\operatorname{midpoint}(${p1},${p2})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE }));
-        processParameter('perpendicular', ([name, point, p1_line, p2_line]) => expressions.push({ id: getNextId('perp'), latex: `${name}=\\operatorname{perpendicular}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.GREEN }));
-        processParameter('parallel', ([name, point, p1_line, p2_line]) => expressions.push({ id: getNextId('parallel'), latex: `${name}=\\operatorname{parallel}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.BLUE }));
-        processParameter('perp_bisector', ([name, p1, p2]) => expressions.push({ id: getNextId('p_bisector'), latex: `${name}=\\operatorname{perpendicularbisector}(${p1},${p2})`, color: Desmos.Colors.PURPLE }));
-        processParameter('angle_bisector', ([name, p1, v, p2]) => expressions.push({ id: getNextId('a_bisector'), latex: `${name}=\\operatorname{anglebisector}(${p1},${v},${p2})`, color: Desmos.Colors.ORANGE }));
-        processParameter('centroid', ([name, p1, p2, p3]) => expressions.push({ id: getNextId('centroid'), latex: `${name}=\\operatorname{centroid}(${p1},${p2},${p3})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE, pointStyle: Desmos.Styles.CROSS }));
+        processParameter('midpoint', ([name, p1, p2]) => geometry.setExpression({ id: getNextId('midpoint'), latex: `${name}=\\operatorname{midpoint}(${p1},${p2})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE }));
+        processParameter('perpendicular', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('perp'), latex: `${name}=\\operatorname{perpendicular}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.GREEN }));
+        processParameter('parallel', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('parallel'), latex: `${name}=\\operatorname{parallel}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.BLUE }));
+        processParameter('perp_bisector', ([name, p1, p2]) => geometry.setExpression({ id: getNextId('p_bisector'), latex: `${name}=\\operatorname{perpendicularbisector}(${p1},${p2})`, color: Desmos.Colors.PURPLE }));
+        processParameter('angle_bisector', ([name, p1, v, p2]) => geometry.setExpression({ id: getNextId('a_bisector'), latex: `${name}=\\operatorname{anglebisector}(${p1},${v},${p2})`, color: Desmos.Colors.ORANGE }));
+        processParameter('centroid', ([name, p1, p2, p3]) => geometry.setExpression({ id: getNextId('centroid'), latex: `${name}=\\operatorname{centroid}(${p1},${p2},${p3})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE, pointStyle: Desmos.Styles.CROSS }));
 
         // === SHAPES & CURVES ===
-        processParameter('polygon', (parts) => expressions.push({ id: getNextId('polygon'), latex: `\\operatorname{polygon}(${parts.join(',')})`, fillOpacity: 0.2, color: Desmos.Colors.GREEN }));
-        processParameter('circle', ([name, center, radius]) => expressions.push({ id: getNextId('circle'), latex: `\\operatorname{circle}(${center},${radius})`, color: Desmos.Colors.PURPLE }));
-        processParameter('parabola', ([name, vertex, focus]) => expressions.push({ id: getNextId('parabola'), latex: `${name}=\\operatorname{parabola}(${vertex},${focus})`, color: Desmos.Colors.BLUE }));
+        processParameter('polygon', (parts) => geometry.setExpression({ id: getNextId('polygon'), latex: `\\operatorname{polygon}(${parts.join(',')})`, fillOpacity: 0.2, color: Desmos.Colors.GREEN }));
+        processParameter('circle', ([name, center, radius]) => geometry.setExpression({ id: getNextId('circle'), latex: `\\operatorname{circle}(${center},${radius})`, color: Desmos.Colors.PURPLE }));
+        processParameter('parabola', ([name, vertex, focus]) => geometry.setExpression({ id: getNextId('parabola'), latex: `${name}=\\operatorname{parabola}(${vertex},${focus})`, color: Desmos.Colors.BLUE }));
 
         // === ANGLES & TRANSFORMATIONS ===
         processParameter('angle', (parts) => {
             const latex = parts.length === 4 ? `${parts[0]}=\\operatorname{angle}(${parts[1]},${parts[2]},${parts[3]})` : `\\operatorname{angle}(${parts[0]},${parts[1]},${parts[2]})`;
-            expressions.push({ id: getNextId('angle'), latex: latex, color: Desmos.Colors.ORANGE });
+            geometry.setExpression({ id: getNextId('angle'), latex: latex, color: Desmos.Colors.ORANGE });
         });
         
-        processParameter('reflect', ([obj, p1_line, p2_line]) => expressions.push({ id: getNextId('reflect'), latex: `\\operatorname{reflect}(${obj},\\operatorname{line}(${p1_line},${p2_line}))`, lineStyle: Desmos.Styles.DASHED }));
-        processParameter('rotate', ([obj, center, deg]) => expressions.push({ id: getNextId('rotate'), latex: `\\operatorname{rotate}(${obj},${deg}^{\\circ},${center})`, lineStyle: Desmos.Styles.DASHED }));
-        processParameter('dilate', ([obj, center, scale]) => expressions.push({ id: getNextId('dilate'), latex: `\\operatorname{dilate}(${obj},${scale},${center})`, lineStyle: Desmos.Styles.DASHED }));
+        processParameter('reflect', ([obj, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('reflect'), latex: `\\operatorname{reflect}(${obj},\\operatorname{line}(${p1_line},${p2_line}))`, lineStyle: Desmos.Styles.DASHED }));
+        processParameter('rotate', ([obj, center, deg]) => geometry.setExpression({ id: getNextId('rotate'), latex: `\\operatorname{rotate}(${obj},${deg}^{\\circ},${center})`, lineStyle: Desmos.Styles.DASHED }));
+        processParameter('dilate', ([obj, center, scale]) => geometry.setExpression({ id: getNextId('dilate'), latex: `\\operatorname{dilate}(${obj},${scale},${center})`, lineStyle: Desmos.Styles.DASHED }));
 
         // === LABELS & TEXT ===
         processParameter('text', (parts) => {
             const [x, y] = parts;
             const content = parts.slice(2).join(',');
-            expressions.push({ id: getNextId('text'), latex: `(${x},${y})`, label: content, showLabel: true, pointOpacity: 0, color: Desmos.Colors.BLACK });
+            geometry.setExpression({ id: getNextId('text'), latex: `(${x},${y})`, label: content, showLabel: true, pointOpacity: 0, color: Desmos.Colors.BLACK });
         });
 
-        // --- FINAL BATCH SUBMISSION ---
-        // A short delay for gpoint processing before the main batch
-        setTimeout(() => {
-             geometry.setExpressions(expressions);
-             console.log("Desmos Dynamic Geometry Builder initialized with all expressions.");
-        }, 50);
-
-        // === GLOBAL DISPLAY SETTINGS (Applied after expressions) ===
+        // === GLOBAL DISPLAY SETTINGS (Applied last) ===
         const settings = {};
         if (params.get('grid') === 'false') settings.showGrid = false;
         if (params.get('axes') === 'false') settings.showAxes = false;
@@ -125,6 +140,7 @@
             });
         }
         
+        console.log("Desmos Dynamic Geometry Builder initialized.");
     </script>
 </body>
 </html>
