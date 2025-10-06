@@ -15,7 +15,7 @@
         const params = new URLSearchParams(window.location.search);
         const geometry = Desmos.Geometry(document.getElementById('geometry'));
 
-        const points = {}; // Caches coordinates for static points (e.g., from bearings)
+        const points = {}; // Caches coordinates for static points
         let exprCounter = 0;
 
         // === HELPER FUNCTIONS ===
@@ -37,80 +37,34 @@
                 });
             }
         }
-        
-        function bearingToCoords(bearing, distance, fromPoint = {x:0, y:0}) {
-            const angle = (90 - bearing) * Math.PI / 180; // Convert bearing to standard angle in radians
-            return {
-                x: fromPoint.x + distance * Math.cos(angle),
-                y: fromPoint.y + distance * Math.sin(angle)
-            };
-        }
 
         // === DEFAULTS & INITIAL SETUP ===
         
         if (params.get('hide_origin') !== 'true') {
             geometry.setExpression({ id: 'origin', latex: 'O=(0,0)', label: 'O', showLabel: true, color: Desmos.Colors.BLACK, pointStyle: Desmos.Styles.OPEN });
-            points['O'] = { x: 0, y: 0 };
         }
 
         // === SLIDERS & DYNAMIC VARIABLES ===
 
-        // slider=name,value,min,max,step
         processParameter('slider', (parts) => {
             const [name, val, min, max, step] = parts;
-            geometry.setExpression({
-                id: getNextId(`slider_${name}`),
-                latex: `${name}=${val}`,
-                slider: { min, max, step }
-            });
+            geometry.setExpression({ id: getNextId(`slider_${name}`), latex: `${name}=${val}`, slider: { min, max, step } });
         });
 
-        // expression=latex_string (For defining helper variables, functions, etc.)
         processParameter('expression', (parts, originalItem) => {
-            geometry.setExpression({
-                id: getNextId('expression'),
-                latex: originalItem
-            });
+            geometry.setExpression({ id: getNextId('expression'), latex: originalItem });
         });
 
         // === POINT DEFINITIONS ===
 
-        // point=name,x,y (Static points)
         processParameter('point', (parts) => {
             const [name, x, y] = parts;
-            points[name] = { x: parseFloat(x), y: parseFloat(y) };
-            geometry.setExpression({
-                id: `point_${name}`,
-                latex: `${name}=(${x},${y})`,
-                label: name,
-                showLabel: true,
-                color: Desmos.Colors.RED
-            });
+            geometry.setExpression({ id: `point_${name}`, latex: `${name}=(${x},${y})`, label: name, showLabel: true, color: Desmos.Colors.RED });
         });
         
-        // bearing=name,bearing,distance[,from] (Calculated static points)
-        processParameter('bearing', (parts) => {
-            const [name, bearing, dist, from = 'O'] = parts;
-            const fromPoint = points[from] || { x: 0, y: 0 };
-            const coords = bearingToCoords(parseFloat(bearing), parseFloat(dist), fromPoint);
-            points[name] = coords;
-            geometry.setExpression({
-                id: `point_${name}`,
-                latex: `${name}=(${coords.x.toFixed(6)},${coords.y.toFixed(6)})`,
-                label: name, showLabel: true, color: Desmos.Colors.RED
-            });
-        });
-        
-        // gpoint=name,x_expr,y_expr (Dynamic points)
         processParameter('gpoint', (parts) => {
             const [name, xExpr, yExpr] = parts;
-            geometry.setExpression({
-                id: `gpoint_${name}`,
-                latex: `${name}=(${xExpr},${yExpr})`,
-                label: name,
-                showLabel: true,
-                color: Desmos.Colors.PURPLE
-            });
+            geometry.setExpression({ id: `gpoint_${name}`, latex: `${name}=(${xExpr},${yExpr})`, label: name, showLabel: true, color: Desmos.Colors.PURPLE });
         });
 
         // === LINES, SEGMENTS, VECTORS ===
@@ -123,8 +77,11 @@
         // === GEOMETRIC CONSTRUCTIONS ===
         
         processParameter('midpoint', ([name, p1, p2]) => geometry.setExpression({ id: getNextId('midpoint'), latex: `${name}=\\operatorname{midpoint}(${p1},${p2})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE }));
-        processParameter('perpendicular', ([name, point, linePts]) => geometry.setExpression({ id: getNextId('perp'), latex: `${name}=\\operatorname{perpendicular}(${point},\\operatorname{line}(${linePts[0]},${linePts[1]}))`, color: Desmos.Colors.GREEN }));
-        processParameter('parallel', ([name, point, linePts]) => geometry.setExpression({ id: getNextId('parallel'), latex: `${name}=\\operatorname{parallel}(${point},\\operatorname{line}(${linePts[0]},${linePts[1]}))`, color: Desmos.Colors.BLUE }));
+        
+        // Updated to handle points like P_1, P_2
+        processParameter('perpendicular', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('perp'), latex: `${name}=\\operatorname{perpendicular}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.GREEN }));
+        processParameter('parallel', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('parallel'), latex: `${name}=\\operatorname{parallel}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.BLUE }));
+
         processParameter('perp_bisector', ([name, p1, p2]) => geometry.setExpression({ id: getNextId('p_bisector'), latex: `${name}=\\operatorname{perpendicularbisector}(${p1},${p2})`, color: Desmos.Colors.PURPLE }));
         processParameter('angle_bisector', ([name, p1, v, p2]) => geometry.setExpression({ id: getNextId('a_bisector'), latex: `${name}=\\operatorname{anglebisector}(${p1},${v},${p2})`, color: Desmos.Colors.ORANGE }));
         processParameter('centroid', ([name, p1, p2, p3]) => geometry.setExpression({ id: getNextId('centroid'), latex: `${name}=\\operatorname{centroid}(${p1},${p2},${p3})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE, pointStyle: Desmos.Styles.CROSS }));
@@ -133,20 +90,17 @@
         
         processParameter('polygon', (parts) => geometry.setExpression({ id: getNextId('polygon'), latex: `\\operatorname{polygon}(${parts.join(',')})`, fillOpacity: 0.2, color: Desmos.Colors.GREEN }));
         processParameter('circle', ([name, center, radius]) => geometry.setExpression({ id: getNextId('circle'), latex: `${name}=\\operatorname{circle}(${center},${radius})`, color: Desmos.Colors.PURPLE }));
-        processParameter('circle_3pt', ([name, p1, p2, p3]) => geometry.setExpression({ id: getNextId('circle_3pt'), latex: `${name}=\\operatorname{circle}(${p1},${p2},${p3})`, color: Desmos.Colors.PURPLE }));
-        processParameter('arc', ([name, center, p1, p2]) => geometry.setExpression({ id: getNextId('arc'), latex: `${name}=\\operatorname{arc}(${center},${p1},${p2})`, color: Desmos.Colors.PURPLE }));
         processParameter('parabola', ([name, vertex, focus]) => geometry.setExpression({ id: getNextId('parabola'), latex: `${name}=\\operatorname{parabola}(${vertex},${focus})`, color: Desmos.Colors.BLUE }));
 
-        // === ANGLES & MEASUREMENTS ===
+        // === ANGLES & TRANSFORMATIONS ===
         
         processParameter('angle', (parts) => {
             const latex = parts.length === 4 ? `${parts[0]}=\\operatorname{angle}(${parts[1]},${parts[2]},${parts[3]})` : `\\operatorname{angle}(${parts[0]},${parts[1]},${parts[2]})`;
             geometry.setExpression({ id: getNextId('angle'), latex: latex, color: Desmos.Colors.ORANGE });
         });
         
-        // === TRANSFORMATIONS ===
-
-        processParameter('reflect', ([obj, linePts]) => geometry.setExpression({ id: getNextId('reflect'), latex: `\\operatorname{reflect}(${obj},\\operatorname{line}(${linePts[0]},${linePts[1]}))`, lineStyle: Desmos.Styles.DASHED }));
+        // Updated to handle points like P_1, P_2
+        processParameter('reflect', ([obj, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('reflect'), latex: `\\operatorname{reflect}(${obj},\\operatorname{line}(${p1_line},${p2_line}))`, lineStyle: Desmos.Styles.DASHED }));
         processParameter('rotate', ([obj, center, deg]) => geometry.setExpression({ id: getNextId('rotate'), latex: `\\operatorname{rotate}(${obj},${deg}^{\\circ},${center})`, lineStyle: Desmos.Styles.DASHED }));
         processParameter('dilate', ([obj, center, scale]) => geometry.setExpression({ id: getNextId('dilate'), latex: `\\operatorname{dilate}(${obj},${scale},${center})`, lineStyle: Desmos.Styles.DASHED }));
 
@@ -154,7 +108,7 @@
         
         processParameter('text', (parts) => {
             const [x, y] = parts;
-            const content = parts.slice(2).join(','); // Re-join content in case it contains commas
+            const content = parts.slice(2).join(',');
             geometry.setExpression({ id: getNextId('text'), latex: `(${x},${y})`, label: content, showLabel: true, pointOpacity: 0, color: Desmos.Colors.BLACK });
         });
 
@@ -165,6 +119,7 @@
         if (params.get('axes') === 'false') settings.showAxes = false;
         if (params.get('angle_mode') === 'degrees') settings.degreeMode = true;
         if (params.get('projector_mode') === 'true') settings.projectorMode = true;
+        if (params.get('lock_viewport') === 'true') settings.lockViewport = true; // <-- New setting
         geometry.updateSettings(settings);
 
         if (params.has('xmin')) {
@@ -175,7 +130,6 @@
         }
         
         console.log("Desmos Dynamic Geometry Builder initialized.");
-
     </script>
 </body>
 </html>
