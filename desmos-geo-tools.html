@@ -22,46 +22,90 @@
       keypad: true
     });
 
-    const params = new URLSearchParams(window.location.search);
-    const config = params.get('config');
+    function toBool(v){ return String(v).toLowerCase()==='true' || String(v)==='1'; }
 
-    // ✅ FIXED: emit a SINGLE backslash; also collapse accidental doubles
+    // Read ?config=... but keep literal '+'
+    function getConfigParam() {
+      const q = window.location.search.slice(1);
+      const m = q.match(/(?:^|&)config=([^&]*)/);
+      if (!m) return null;
+      const raw = m[1].replace(/\+/g, '%2B');
+      try { return decodeURIComponent(raw); } catch { return m[1]; }
+    }
+    const config = getConfigParam();
+
+    // Safer comma split: respects (), [] and "..."
+    function splitArgs(str) {
+      const out = [];
+      let buf = '';
+      let par = 0, br = 0, inQ = false;
+      for (let i = 0; i < str.length; i++) {
+        const c = str[i];
+        if (c === '"' && str[i-1] !== '\\') { inQ = !inQ; buf += c; continue; }
+        if (!inQ) {
+          if (c === '(') par++;
+          else if (c === ')') par = Math.max(0, par-1);
+          else if (c === '[') br++;
+          else if (c === ']') br = Math.max(0, br-1);
+          else if (c === ',' && par === 0 && br === 0) { out.push(buf.trim()); buf = ''; continue; }
+        }
+        buf += c;
+      }
+      if (buf.trim()) out.push(buf.trim());
+      return out;
+    }
+
+    // Normalize to Desmos LaTeX
     function toDesmosLatex(s = '') {
       if (typeof s !== 'string') return s;
-
-      // If user provided backslashes already, normalize multiple "\" to one
       s = s.replace(/\\{2,}(?=[a-zA-Z])/g, '\\');
 
-      const fns = [
-        'sin','cos','tan','sec','csc','cot',
-        'asin','acos','atan',
-        'sinh','cosh','tanh',
-        'ln','log'
-      ];
+      const fns = ['sin','cos','tan','sec','csc','cot','asin','acos','atan','sinh','cosh','tanh','ln','log'];
       for (const fn of fns) {
-        // bare fn(  -> \fn(
         s = s.replace(new RegExp(`(?<!\\\\)\\b${fn}\\s*\\(`, 'g'), '\\' + fn + '(');
-        // any number of leading backslashes -> exactly one
         s = s.replace(new RegExp(`\\\\+${fn}\\s*\\(`, 'g'), '\\' + fn + '(');
       }
-
-      // pi -> \pi (when not already escaped)
       s = s.replace(/(?<!\\)\bpi\b/g, '\\pi');
-
-      // sqrt(x) -> \sqrt{x} (basic form)
-      s = s.replace(/(?<!\\)\bsqrt\s*\(\s*([^()]+?)\s*\)/g, '\\sqrt{$1}');
-
-      // degree symbol -> ^\circ
       s = s.replace(/(\^\s*)?°/g, '^\\circ');
-
+      s = s.replace(/(?<!\\)\bsqrt\s*\(\s*([^()]+?)\s*\)/g, '\\sqrt{$1}');
+      s = s.replace(/(\d+)\s*\*\s*\\pi\b/g, '$1\\pi');                   // 2*\pi -> 2\pi
+      s = s.replace(/([a-zA-Z)\d])\s*\*\s*(\\pi|\d|\b[a-zA-Z]\b)/g, '$1 $2'); // x*\pi -> x \pi
       return s;
     }
 
-    // Base state
+    // Convert a simple numeric expression (numbers, + - * / . ( ) and pi/\\pi) to a JS number
+    function toNumberBound(v) {
+      if (v == null) return NaN;
+      let s = String(v).trim();
+      if (!s) return NaN;
+
+      // Normalize common variants first
+      s = toDesmosLatex(s);          // turns pi -> \pi
+      // Insert explicit * for cases like "2\pi"
+      s = s.replace(/(\d)\s*\\pi\b/g, '$1*Math.PI');
+      s = s.replace(/\\pi\b/g, 'Math.PI'); // remaining \pi
+
+      // Now s should only use digits, +-*/(). and 'Math.PI'
+      const test = s.replace(/Math\.PI/g, ''); // temporarily remove allowed token
+      if (/[A-Za-z]/.test(test)) return NaN;   // reject any other letters
+
+      // As a final sanity check, allow only safe characters
+      if (!/^[0-9+\-*/().\s]*$/.test(test)) return NaN;
+
+      try {
+        // eslint-disable-next-line no-new-func
+        const n = Function('return (' + s + ')')();
+        return Number(n);
+      } catch {
+        return NaN;
+      }
+    }
+
     const state = {
       version: 11,
-      graph: { degreeMode: false }, // radians by default
-      expressions: { list: [] }
+      graph: { degreeMode: false },
+      expressions: { list: [] },
+      _pendingBounds: null
     };
 
     if (config) {
@@ -70,13 +114,18 @@
           const [name, val, min, max, step] = parts;
           return {
             type: 'expression',
-            latex: `${name}=${val}`,
-            slider: { min, max, step, hardMin: true, hardMax: true }
+            latex: `${name}=${toDesmosLatex(val)}`,
+            slider: {
+              min: toDesmosLatex(min),
+              max: toDesmosLatex(max),
+              step: step,
+              hardMin: true,
+              hardMax: true
+            }
           };
         },
         point(parts) {
-          const [name, ...coords] = parts;
-          const [x = '', y = ''] = coords;
+          const [name, x = '', y = ''] = parts;
           return {
             type: 'expression',
             latex: `${name}=(${toDesmosLatex(x)},${toDesmosLatex(y)})`,
@@ -92,33 +141,67 @@
           };
         },
         expression(parts) {
-          const raw = parts.join(',');
-          return { type: 'expression', latex: toDesmosLatex(raw) };
-        }
+          let latex = parts.join(',');
+          if ((latex.startsWith('"') && latex.endsWith('"')) || (latex.startsWith("'") && latex.endsWith("'"))) {
+            latex = latex.slice(1, -1);
+          }
+          return { type: 'expression', latex: toDesmosLatex(latex) };
+        },
+        expr(parts) { return featureMap.expression(parts); }
       };
 
-      const definitions = config.split(';');
-      definitions.forEach(def => {
+      const definitions = config.split(';').map(s => s.trim()).filter(Boolean);
+
+      for (const def of definitions) {
         try {
-          const [feature, paramsStr] = def.split('=');
+          const eq = def.indexOf('=');
+          if (eq === -1) continue;
+          const feature = def.slice(0, eq).trim();
+          const rhs = def.slice(eq + 1).trim();
 
-          // global setting
-          if (feature === 'degree_mode') {
-            state.graph.degreeMode = (paramsStr === 'true');
-            return;
+          // ---- GLOBALS ----
+          if (feature === 'degree_mode') { state.graph.degreeMode = (rhs === 'true'); continue; }
+          if (feature === 'grid' || feature === 'showGrid') { state.graph.showGrid = toBool(rhs); continue; }
+          if (feature === 'axes') {
+            const b = toBool(rhs);
+            state.graph.showXAxis = b; state.graph.showYAxis = b; continue;
           }
+          if (feature === 'x_axis') { state.graph.showXAxis = toBool(rhs); continue; }
+          if (feature === 'y_axis') { state.graph.showYAxis = toBool(rhs); continue; }
+          if (feature === 'bounds') {
+            const p = splitArgs(rhs);
+            if (p.length === 4) {
+              const [xminS, xmaxS, yminS, ymaxS] = p;
+              const xmin = toNumberBound(xminS);
+              const xmax = toNumberBound(xmaxS);
+              const ymin = toNumberBound(yminS);
+              const ymax = toNumberBound(ymaxS);
+              if ([xmin, xmax, ymin, ymax].every(n => Number.isFinite(n))) {
+                state._pendingBounds = { left: xmin, right: xmax, bottom: ymin, top: ymax };
+              } else {
+                console.warn('bounds ignored (could not parse to numbers):', p);
+              }
+            }
+            continue;
+          }
+          // -----------------
 
-          const paramsArr = paramsStr.split(',');
-          const handler = featureMap[feature] || featureMap['expression'];
-          const expressionObject = handler(paramsArr);
-          state.expressions.list.push(expressionObject);
+          const paramsArr = splitArgs(rhs);
+          const handler = featureMap[feature] || featureMap.expression;
+          const node = handler(paramsArr);
+          if (node) state.expressions.list.push(node);
         } catch (e) {
           console.error('Could not parse definition:', def, e);
         }
-      });
+      }
 
       requestAnimationFrame(() => {
         calculator.setState(state);
+
+        if (state._pendingBounds) {
+          calculator.setMathBounds(state._pendingBounds);
+        }
+
         console.log('Desmos state loaded from config.', state);
       });
     }
