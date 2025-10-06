@@ -12,80 +12,74 @@
     <div id="calculator"></div>
     <script>
         const elt = document.getElementById('calculator');
-        const calculator = Desmos.GraphingCalculator(elt, {
-            expressions: true,
-            settingsMenu: true,
-            projectorMode: false,
-            zoomButtons: true,
-            expressionsCollapsed: false,
-            keypad: true
-        });
-
+        const calculator = Desmos.GraphingCalculator(elt);
         const params = new URLSearchParams(window.location.search);
         const config = params.get('config');
 
-        // The base state object we will build upon
-        const state = {
-            version: 11,
-            graph: { degreeMode: false }, // Default to radians
-            expressions: { list: [] }
-        };
+        let exprCounter = 0;
+        function getNextId() { return `expr_${exprCounter++}`; }
 
         if (config) {
+            const definitions = config.split(';');
+
+            // --- GLOBAL SETTINGS ---
+            let settings = {};
+            const degreeModeDef = definitions.find(d => d.startsWith('degree_mode='));
+            if (degreeModeDef) {
+                settings.degreeMode = (degreeModeDef.split('=')[1] === 'true');
+            }
+            calculator.updateSettings(settings);
+
+            // --- EXPRESSION HANDLERS ---
             const featureMap = {
                 slider: (parts) => {
                     const [name, val, min, max, step] = parts;
-                    return {
-                        type: 'expression',
+                    calculator.setExpression({
+                        id: getNextId(),
                         latex: `${name}=${val}`,
                         slider: { min, max, step, hardMin: true, hardMax: true }
-                    };
+                    });
                 },
                 point: (parts) => {
                     const [name, ...coords] = parts;
-                    return {
-                        type: 'expression',
-                        latex: `${name}=(${coords.join(',')})`,
-                        showLabel: true
-                    };
+                    const latex = `${name}=(${coords.join(',')})`;
+                    const isDynamic = coords.some(c => /[a-zA-Z]/.test(c));
+                    
+                    const expr = { id: name, latex: latex, showLabel: true };
+
+                    if (isDynamic) {
+                        // Delay dynamic points to ensure dependencies (like sliders) are ready
+                        setTimeout(() => calculator.setExpression(expr), 10);
+                    } else {
+                        calculator.setExpression(expr);
+                    }
                 },
                 segment: (parts) => {
                     const [p1, p2] = parts;
-                    // Note: Use _{} for subscripts with multiple characters
-                    return {
-                        type: 'expression',
+                    calculator.setExpression({
+                        id: getNextId(),
                         latex: `((1-t)${p1}.x+t${p2}.x,(1-t)${p1}.y+t${p2}.y)`,
                         parametricDomain: { min: '0', max: '1' }
-                    };
+                    });
                 },
                 expression: (parts) => {
-                    return { type: 'expression', latex: parts.join(',') };
+                    calculator.setExpression({ id: getNextId(), latex: parts.join(',') });
                 }
             };
 
-            const definitions = config.split(';');
             definitions.forEach(def => {
                 try {
                     const [feature, paramsStr] = def.split('=');
-                    
-                    // Handle global settings separately
-                    if (feature === 'degree_mode') {
-                        state.graph.degreeMode = (paramsStr === 'true');
-                        return; // Go to the next definition
-                    }
+                    if (feature === 'degree_mode') return; // Skip settings
                     
                     const paramsArr = paramsStr.split(',');
                     const handler = featureMap[feature] || featureMap['expression'];
-                    const expressionObject = handler(paramsArr);
-                    state.expressions.list.push(expressionObject);
+                    handler(paramsArr);
 
                 } catch (e) {
                     console.error("Could not parse definition:", def, e);
                 }
             });
-
-            calculator.setState(state);
-            console.log("Desmos state loaded from config.", state);
         }
     </script>
 </body>
