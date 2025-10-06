@@ -21,6 +21,7 @@
 
         if (config) {
             const definitions = config.split(';');
+            const dynamicDefs = []; // A list to hold expressions with dependencies
 
             // --- GLOBAL SETTINGS ---
             let settings = {};
@@ -42,43 +43,90 @@
                 },
                 point: (parts) => {
                     const [name, ...coords] = parts;
-                    const latex = `${name}=(${coords.join(',')})`;
                     const isDynamic = coords.some(c => /[a-zA-Z]/.test(c));
                     
-                    const expr = { id: name, latex: latex, showLabel: true };
+                    const expr = { id: name, latex: `${name}=(${coords.join(',')})`, showLabel: true };
 
                     if (isDynamic) {
-                        // Delay dynamic points to ensure dependencies (like sliders) are ready
-                        setTimeout(() => calculator.setExpression(expr), 10);
+                        // If dynamic, don't create it yet. Add it to our waiting list.
+                        dynamicDefs.push(expr);
                     } else {
                         calculator.setExpression(expr);
                     }
                 },
                 segment: (parts) => {
                     const [p1, p2] = parts;
-                    calculator.setExpression({
+                    const expr = {
                         id: getNextId(),
                         latex: `((1-t)${p1}.x+t${p2}.x,(1-t)${p1}.y+t${p2}.y)`,
                         parametricDomain: { min: '0', max: '1' }
-                    });
+                    };
+                    // Segments are often dynamic, so add them to the waiting list too.
+                    dynamicDefs.push(expr);
                 },
                 expression: (parts) => {
-                    calculator.setExpression({ id: getNextId(), latex: parts.join(',') });
+                     const latex = parts.join(',');
+                     const isDynamic = /[a-zA-Z]/.test(latex);
+                     const expr = { id: getNextId(), latex: latex };
+                     
+                     if (isDynamic) {
+                         dynamicDefs.push(expr);
+                     } else {
+                         calculator.setExpression(expr);
+                     }
                 }
             };
+            
+            // --- MAIN PROCESSING ---
 
+            // 1. Process only the simple, non-dynamic expressions first.
             definitions.forEach(def => {
                 try {
                     const [feature, paramsStr] = def.split('=');
-                    if (feature === 'degree_mode') return; // Skip settings
+                    if (feature === 'degree_mode' || !paramsStr) return;
                     
                     const paramsArr = paramsStr.split(',');
                     const handler = featureMap[feature] || featureMap['expression'];
-                    handler(paramsArr);
+                    
+                    // Temporarily check if it's dynamic here to decide if we should process now or later.
+                    const isPotentiallyDynamic = feature === 'point' || feature === 'segment' || feature === 'expression';
+                    const isDynamic = isPotentiallyDynamic && paramsStr.match(/[a-zA-Z]/);
 
+                    if (!isDynamic) {
+                        handler(paramsArr);
+                    }
                 } catch (e) {
                     console.error("Could not parse definition:", def, e);
                 }
+            });
+
+            // 2. Set up a one-time listener to process the dynamic expressions.
+            const observer = calculator.observe('change', () => {
+                // Once the calculator has changed (meaning sliders are loaded),
+                // disconnect the observer so this only runs once.
+                observer.disconnect();
+
+                // Now, process all the expressions that were waiting.
+                definitions.forEach(def => {
+                     try {
+                        const [feature, paramsStr] = def.split('=');
+                        if (feature === 'degree_mode' || !paramsStr) return;
+                        
+                        const paramsArr = paramsStr.split(',');
+                        const handler = featureMap[feature] || featureMap['expression'];
+
+                        const isPotentiallyDynamic = feature === 'point' || feature === 'segment' || feature === 'expression';
+                        const isDynamic = isPotentiallyDynamic && paramsStr.match(/[a-zA-Z]/);
+
+                        if (isDynamic) {
+                            handler(paramsArr);
+                        }
+                    } catch (e) {
+                        console.error("Could not parse dynamic definition:", def, e);
+                    }
+                });
+
+                console.log("Dynamic expressions loaded.");
             });
         }
     </script>
