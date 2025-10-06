@@ -18,10 +18,7 @@
         let exprCounter = 0;
 
         // === HELPER FUNCTIONS ===
-
-        function getNextId(prefix = 'expr') {
-            return `${prefix}_${exprCounter++}`;
-        }
+        function getNextId(prefix = 'expr') { return `${prefix}_${exprCounter++}`; }
 
         function processParameter(paramName, callback) {
             const paramValue = params.get(paramName);
@@ -29,7 +26,7 @@
                 paramValue.split(';').forEach(item => {
                     try {
                         const parts = item.trim().split(',');
-                        callback(parts, item.trim()); // Pass both parts and original item
+                        callback(parts, item.trim());
                     } catch (e) {
                         console.error(`Error processing parameter '${paramName}' with value '${item}':`, e);
                     }
@@ -38,36 +35,25 @@
         }
 
         // === DEFAULTS & INITIAL SETUP ===
-        
         if (params.get('hide_origin') !== 'true') {
             geometry.setExpression({ id: 'origin', latex: 'O=(0,0)', label: 'O', showLabel: true, color: Desmos.Colors.BLACK, pointStyle: Desmos.Styles.OPEN });
         }
 
         // === SLIDERS & DYNAMIC VARIABLES ===
-
-        // FINAL "PRIMING" SLIDER HANDLER
+        // DEFINITIVE SLIDER HANDLER
         processParameter('slider', (parts) => {
             const [name, val, min, max, step] = parts;
-            const sliderId = `slider_${name}_${getNextId()}`;
-
-            // Step 1: Create a simple placeholder expression.
             geometry.setExpression({
-                id: sliderId,
-                latex: `${name}=0`
+                id: getNextId(`slider_${name}`),
+                latex: `${name}=${val}`,
+                slider: {
+                    min: min,
+                    max: max,
+                    step: step,
+                    hardMin: true, // The missing key!
+                    hardMax: true  // The missing key!
+                }
             });
-
-            // Step 2: After a minimal delay, overwrite the placeholder with the full definition.
-            setTimeout(() => {
-                geometry.setExpression({
-                    id: sliderId, // Use the same ID to overwrite
-                    latex: `${name}=${parseFloat(val)}`,
-                    slider: {
-                        min: parseFloat(min),
-                        max: parseFloat(max),
-                        step: parseFloat(step)
-                    }
-                });
-            }, 1); // 1ms delay
         });
 
         processParameter('expression', (parts, originalItem) => {
@@ -75,12 +61,12 @@
         });
 
         // === POINT DEFINITIONS ===
-
         processParameter('point', (parts) => {
             const [name, x, y] = parts;
             geometry.setExpression({ id: `point_${name}`, latex: `${name}=(${x},${y})`, label: name, showLabel: true, color: Desmos.Colors.RED });
         });
         
+        // The gpoint delay is still a good idea for stability
         processParameter('gpoint', (parts) => {
             setTimeout(() => {
                 const [name, xExpr, yExpr] = parts;
@@ -95,14 +81,12 @@
         });
 
         // === LINES, SEGMENTS, VECTORS ===
-        
         processParameter('line', (parts) => geometry.setExpression({ id: getNextId('line'), latex: `\\operatorname{line}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
         processParameter('segment', (parts) => geometry.setExpression({ id: getNextId('segment'), latex: `\\operatorname{segment}(${parts[0]},${parts[1]})`, color: Desmos.Colors.GREEN }));
         processParameter('ray', (parts) => geometry.setExpression({ id: getNextId('ray'), latex: `\\operatorname{ray}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
         processParameter('vector', (parts) => geometry.setExpression({ id: getNextId('vector'), latex: `\\operatorname{vector}(${parts[0]},${parts[1]})`, color: Desmos.Colors.PURPLE }));
 
         // === GEOMETRIC CONSTRUCTIONS ===
-        
         processParameter('midpoint', ([name, p1, p2]) => geometry.setExpression({ id: getNextId('midpoint'), latex: `${name}=\\operatorname{midpoint}(${p1},${p2})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE }));
         processParameter('perpendicular', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('perp'), latex: `${name}=\\operatorname{perpendicular}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.GREEN }));
         processParameter('parallel', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('parallel'), latex: `${name}=\\operatorname{parallel}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.BLUE }));
@@ -111,13 +95,11 @@
         processParameter('centroid', ([name, p1, p2, p3]) => geometry.setExpression({ id: getNextId('centroid'), latex: `${name}=\\operatorname{centroid}(${p1},${p2},${p3})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE, pointStyle: Desmos.Styles.CROSS }));
 
         // === SHAPES & CURVES ===
-        
         processParameter('polygon', (parts) => geometry.setExpression({ id: getNextId('polygon'), latex: `\\operatorname{polygon}(${parts.join(',')})`, fillOpacity: 0.2, color: Desmos.Colors.GREEN }));
         processParameter('circle', ([name, center, radius]) => geometry.setExpression({ id: getNextId('circle'), latex: `\\operatorname{circle}(${center},${radius})`, color: Desmos.Colors.PURPLE }));
         processParameter('parabola', ([name, vertex, focus]) => geometry.setExpression({ id: getNextId('parabola'), latex: `${name}=\\operatorname{parabola}(${vertex},${focus})`, color: Desmos.Colors.BLUE }));
 
         // === ANGLES & TRANSFORMATIONS ===
-        
         processParameter('angle', (parts) => {
             const latex = parts.length === 4 ? `${parts[0]}=\\operatorname{angle}(${parts[1]},${parts[2]},${parts[3]})` : `\\operatorname{angle}(${parts[0]},${parts[1]},${parts[2]})`;
             geometry.setExpression({ id: getNextId('angle'), latex: latex, color: Desmos.Colors.ORANGE });
@@ -128,7 +110,6 @@
         processParameter('dilate', ([obj, center, scale]) => geometry.setExpression({ id: getNextId('dilate'), latex: `\\operatorname{dilate}(${obj},${scale},${center})`, lineStyle: Desmos.Styles.DASHED }));
 
         // === LABELS & TEXT ===
-        
         processParameter('text', (parts) => {
             const [x, y] = parts;
             const content = parts.slice(2).join(',');
@@ -136,7 +117,6 @@
         });
 
         // === GLOBAL DISPLAY SETTINGS (Applied last) ===
-        
         const settings = {};
         if (params.get('grid') === 'false') settings.showGrid = false;
         if (params.get('axes') === 'false') settings.showAxes = false;
