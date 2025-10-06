@@ -1,132 +1,101 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Desmos Dynamic Geometry Builder</title>
-<script src="https://www.desmos.com/api/v1.10/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>    <style>
-        body { margin: 0; padding: 0; font-family: sans-serif; }
-        #geometry { width: 100vw; height: 100vh; }
+    <title>Desmos Dynamic Builder</title>
+    <script src="https://www.desmos.com/api/v1.10/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #calculator { width: 100vw; height: 100vh; }
     </style>
 </head>
 <body>
-    <div id="geometry"></div>
+    <div id="calculator"></div>
     <script>
-        const params = new URLSearchParams(window.location.search);
-        const geometry = Desmos.Geometry(document.getElementById('geometry'));
+        const elt = document.getElementById('calculator');
+        const calculator = Desmos.GraphingCalculator(elt, {
+            expressions: true,
+            settingsMenu: true,
+            projectorMode: false,
+            zoomButtons: true,
+            expressionsCollapsed: false,
+            keypad: true
+        });
 
-        // --- STATE OBJECT SETUP ---
-        // We will build the entire graph state in this object first.
+        const params = new URLSearchParams(window.location.search);
+        const config = params.get('config');
+
+        // The base state object we will build upon
         const state = {
             version: 11,
-            graph: {
-                showGrid: true,
-                showXAxis: true,
-                showYAxis: true,
-                degreeMode: false,
-                product: "geometry-calculator"
-            },
-            expressions: {
-                list: []
-            }
+            expressions: { list: [] }
         };
 
-        let exprCounter = 0;
-        function getNextId() { return `${exprCounter++}`; }
+        if (config) {
+            // A map of feature names to the functions that create their state objects
+            const featureMap = {
+                slider: (parts) => {
+                    const [name, val, min, max, step] = parts;
+                    return {
+                        type: 'expression',
+                        latex: `${name}=${val}`,
+                        slider: { min, max, step, hardMin: true, hardMax: true }
+                    };
+                },
+                point: (parts) => {
+                    const [name, x, y] = parts;
+                    return {
+                        type: 'expression',
+                        latex: `${name}=(${x},${y})`,
+                        showLabel: true
+                    };
+                },
+                polygon: (parts) => {
+                    const pointNames = parts.join(',');
+                    return {
+                        type: 'expression',
+                        latex: `\\operatorname{polygon}(${pointNames})`,
+                        fillOpacity: 0.2
+                    };
+                },
+                // NOTE: A segment in the graphing calculator uses a parametric equation
+                segment: (parts) => {
+                    const [p1, p2] = parts;
+                    return {
+                        type: 'expression',
+                        latex: `((1-t)${p1}.x+t${p2}.x,(1-t)${p1}.y+t${p2}.y)`,
+                        parametricDomain: { min: '0', max: '1' }
+                    };
+                },
+                // For any other standard Desmos expression (lines, circles, etc.)
+                expression: (parts) => {
+                    const latex = parts.join(','); // Re-join in case of commas in the expression
+                    return { type: 'expression', latex: latex };
+                }
+            };
 
-        // HELPER
-        function processParameter(paramName, callback) {
-            const paramValue = params.get(paramName);
-            if (paramValue) {
-                paramValue.split(';').forEach(item => {
-                    try {
-                        const parts = item.trim().split(',');
-                        callback(parts, item.trim());
-                    } catch (e) { console.error(`Error processing '${paramName}':`, e); }
-                });
-            }
-        }
+            const definitions = config.split(';');
+            definitions.forEach(def => {
+                try {
+                    const [feature, paramsStr] = def.split('=');
+                    const paramsArr = paramsStr.split(',');
+                    
+                    let expressionObject;
+                    if (featureMap[feature]) {
+                        expressionObject = featureMap[feature](paramsArr);
+                    } else {
+                        // Default to a simple expression if feature name is not found
+                        expressionObject = featureMap['expression'](paramsArr);
+                    }
+                    state.expressions.list.push(expressionObject);
 
-        // === DEFAULTS & INITIAL SETUP ===
-        if (params.get('hide_origin') !== 'true') {
-            state.expressions.list.push({ type: 'expression', id: getNextId(), latex: 'O=(0,0)', label: 'O', showLabel: true, color: Desmos.Colors.BLACK, pointStyle: Desmos.Styles.OPEN });
-        } else {
-            // If origin is hidden, we must still have at least one expression to avoid errors.
-            // We'll add a hidden helper point that can be removed if other expressions exist later.
-            state.expressions.list.push({ type: 'expression', id: 'placeholder', latex: '(0,0)', hidden: true });
-        }
-
-        // === SLIDERS & DYNAMIC VARIABLES ===
-        processParameter('slider', (parts) => {
-            const [name, val, min, max, step] = parts;
-            state.expressions.list.push({
-                type: 'expression',
-                id: getNextId(),
-                latex: `${name}=${val}`,
-                slider: { 
-                    min: String(min), 
-                    max: String(max), 
-                    step: String(step), 
-                    hardMin: true, 
-                    hardMax: true 
+                } catch (e) {
+                    console.error("Could not parse definition:", def, e);
                 }
             });
-        });
 
-        processParameter('expression', (parts, originalItem) => {
-            state.expressions.list.push({ type: 'expression', id: getNextId(), latex: originalItem });
-        });
-
-        // === POINT DEFINITIONS ===
-        processParameter('point', (parts) => {
-            const [name, x, y] = parts;
-            state.expressions.list.push({ type: 'expression', id: name, latex: `${name}=(${x},${y})`, label: name, showLabel: true, color: Desmos.Colors.RED });
-        });
-        
-        processParameter('gpoint', (parts) => {
-            const [name, xExpr, yExpr] = parts;
-            state.expressions.list.push({ type: 'expression', id: name, latex: `${name}=(${xExpr},${yExpr})`, label: name, showLabel: true, color: Desmos.Colors.PURPLE });
-        });
-
-        // === GEOMETRY & OTHER EXPRESSIONS ===
-        processParameter('line', (parts) => state.expressions.list.push({ type: 'expression', id: getNextId(), latex: `\\operatorname{line}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
-        processParameter('segment', (parts) => state.expressions.list.push({ type: 'expression', id: getNextId(), latex: `\\operatorname{segment}(${parts[0]},${parts[1]})`, color: Desmos.Colors.GREEN }));
-        // ... (all other handlers would be refactored similarly)
-        processParameter('polygon', (parts) => state.expressions.list.push({ type: 'expression', id: getNextId(), latex: `\\operatorname{polygon}(${parts.join(',')})`, fillOpacity: 0.2, color: Desmos.Colors.GREEN }));
-
-        // === GLOBAL DISPLAY SETTINGS ===
-        if (params.get('grid') === 'false') state.graph.showGrid = false;
-        if (params.get('axes') === 'false') {
-            state.graph.showXAxis = false;
-            state.graph.showYAxis = false;
+            calculator.setState(state);
+            console.log("Desmos state loaded from config.", state);
         }
-        if (params.get('angle_mode') === 'degrees') state.graph.degreeMode = true;
-        if (params.get('projector_mode') === 'true') state.graph.projectorMode = true;
-        
-        if (params.has('xmin')) {
-            state.graph.viewport = {
-                xmin: parseFloat(params.get('xmin')),
-                xmax: parseFloat(params.get('xmax')),
-                ymin: parseFloat(params.get('ymin')),
-                ymax: parseFloat(params.get('ymax'))
-            };
-        }
-
-        // Clean up placeholder if it's no longer the only expression
-        if (state.expressions.list.length > 1) {
-            const placeholderIndex = state.expressions.list.findIndex(expr => expr.id === 'placeholder');
-            if (placeholderIndex > -1) {
-                state.expressions.list.splice(placeholderIndex, 1);
-            }
-        }
-
-        // --- FINAL STATE SUBMISSION ---
-        // Load the entire constructed state object at once.
-        geometry.setState(state, {
-            // This option prevents Desmos from adding its default "example geometry" expressions
-            allowUndo: true,
-            remapColors: true
-        });
-
-        console.log("Desmos state object loaded.", state);
     </script>
 </body>
 </html>
