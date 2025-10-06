@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://www.desmos.com/api/v1.10/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #geometry { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="geometry"></div>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const geometry = Desmos.Geometry(document.getElementById('geometry'));
+        
+        const points = {};
+        let exprCounter = 0;
+        
+        // Helper functions
+        function getNextId(prefix = 'expr') {
+            return `${prefix}_${exprCounter++}`;
+        }
+        
+        function bearingToCoords(bearing, distance, fromPoint = {x:0, y:0}) {
+            const standardAngle = (90 - bearing) * Math.PI / 180;
+            return {
+                x: fromPoint.x + distance * Math.cos(standardAngle),
+                y: fromPoint.y + distance * Math.sin(standardAngle)
+            };
+        }
+        
+        function coordsToBearing(x, y, fromPoint = {x:0, y:0}) {
+            const dx = x - fromPoint.x;
+            const dy = y - fromPoint.y;
+            const bearing = (90 - Math.atan2(dy, dx) * 180 / Math.PI) % 360;
+            return bearing < 0 ? bearing + 360 : bearing;
+        }
+        
+        function distance(p1, p2) {
+            return Math.sqrt((p2.x - p1.x)**2 + (p2.y - p1.y)**2);
+        }
+        
+        // Initialize origin if not hidden
+        if (params.get('hide_origin') !== 'true') {
+            geometry.setExpression({
+                id: 'origin',
+                latex: 'O=(0,0)',
+                label: 'O',
+                showLabel: true,
+                color: Desmos.Colors.BLACK,
+                pointStyle: Desmos.Styles.OPEN
+            });
+            points['O'] = { x: 0, y: 0 };
+        }
+        
+        // === BASIC POINTS ===
+        
+        // bearing=name,bearing,distance[,from]
+        const bearings = params.get('bearing');
+        if (bearings) {
+            bearings.split(';').forEach(item => {
+                const parts = item.trim().split(',');
+                const name = parts[0];
+                const bearing = parseFloat(parts[1]);
+                const dist = parseFloat(parts[2]);
+                const from = parts[3] || 'O';
+                
+                const fromPoint = points[from] || { x: 0, y: 0 };
+                const coords = bearingToCoords(bearing, dist, fromPoint);
+                points[name] = coords;
+                
+                geometry.setExpression({
+                    id: `point_${name}`,
+                    latex: `${name}=(${coords.x.toFixed(6)},${coords.y.toFixed(6)})`,
+                    label: name,
+                    showLabel: true,
+                    color: Desmos.Colors.RED
+                });
+                
+                if (params.get('show_bearing_lines') === 'true' && from === 'O') {
+                    geometry.setExpression({
+                        id: `line_O${name}`,
+                        latex: `\\overline{O${name}}`,
+                        color: Desmos.Colors.BLUE
+                    });
+                }
+            });
+        }
+        
+        // point=name,x,y
+        const pointsParam = params.get('point');
+        if (pointsParam) {
+            pointsParam.split(';').forEach(item => {
+                const parts = item.trim().split(',');
+                const name = parts[0];
+                const x = parseFloat(parts[1]);
+                const y = parseFloat(parts[2]);
+                points[name] = { x, y };
+                
+                geometry.setExpression({
+                    id: `point_${name}`,
+                    latex: `${name}=(${x},${y})`,
+                    label: name,
+                    showLabel: true,
+                    color: Desmos.Colors.RED
+                });
+            });
+        }
+        
+        // === LINES & SEGMENTS ===
+        
+        // line=p1,p2
+        const lines = params.get('line');
+        if (lines) {
+            lines.split(';').forEach(item => {
+                const [p1, p2] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('line'),
+                    latex: `${p1}${p2}`,
+                    color: Desmos.Colors.BLUE,
+                    lineStyle: Desmos.Styles.SOLID
+                });
+            });
+        }
+        
+        // segment=p1,p2
+        const segments = params.get('segment');
+        if (segments) {
+            segments.split(';').forEach(item => {
+                const [p1, p2] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('segment'),
+                    latex: `\\overline{${p1}${p2}}`,
+                    color: Desmos.Colors.GREEN,
+                    lineStyle: Desmos.Styles.SOLID
+                });
+            });
+        }
+        
+        // ray=start,through
+        const rays = params.get('ray');
+        if (rays) {
+            rays.split(';').forEach(item => {
+                const [start, through] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('ray'),
+                    latex: `\\overrightarrow{${start}${through}}`,
+                    color: Desmos.Colors.BLUE
+                });
+            });
+        }
+        
+        // vector=start,end
+        const vectors = params.get('vector');
+        if (vectors) {
+            vectors.split(';').forEach(item => {
+                const [start, end] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('vector'),
+                    latex: `\\vec{${start}${end}}`,
+                    color: Desmos.Colors.PURPLE
+                });
+            });
+        }
+        
+        // === CONSTRUCTION TOOLS ===
+        
+        // midpoint=name,p1,p2
+        const midpoints = params.get('midpoint');
+        if (midpoints) {
+            midpoints.split(';').forEach(item => {
+                const [name, p1, p2] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('midpoint'),
+                    latex: `${name}=\\operatorname{midpoint}(${p1},${p2})`,
+                    label: name,
+                    showLabel: true,
+                    color: Desmos.Colors.ORANGE
+                });
+            });
+        }
+        
+        // perpendicular=name,point,line (where line is like "AB")
+        const perpendiculars = params.get('perpendicular');
+        if (perpendiculars) {
+            perpendiculars.split(';').forEach(item => {
+                const [name, point, line] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('perp'),
+                    latex: `${name}=\\operatorname{perpendicular}(${point},${line})`,
+                    color: Desmos.Colors.GREEN
+                });
+            });
+        }
+        
+        // parallel=name,point,line
+        const parallels = params.get('parallel');
+        if (parallels) {
+            parallels.split(';').forEach(item => {
+                const [name, point, line] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('parallel'),
+                    latex: `${name}=\\operatorname{parallel}(${point},${line})`,
+                    color: Desmos.Colors.BLUE
+                });
+            });
+        }
+        
+        // perp_bisector=name,p1,p2
+        const perpBisectors = params.get('perp_bisector');
+        if (perpBisectors) {
+            perpBisectors.split(';').forEach(item => {
+                const [name, p1, p2] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('perp_bisector'),
+                    latex: `${name}=\\operatorname{perpendicularbisector}(${p1},${p2})`,
+                    color: Desmos.Colors.PURPLE
+                });
+            });
+        }
+        
+        // angle_bisector=name,p1,vertex,p2
+        const angleBisectors = params.get('angle_bisector');
+        if (angleBisectors) {
+            angleBisectors.split(';').forEach(item => {
+                const [name, p1, vertex, p2] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('angle_bisector'),
+                    latex: `${name}=\\operatorname{anglebisector}(${p1},${vertex},${p2})`,
+                    color: Desmos.Colors.ORANGE
+                });
+            });
+        }
+        
+        // === CIRCLES ===
+        
+        // circle=name,center,radius
+        const circles = params.get('circle');
+        if (circles) {
+            circles.split(';').forEach(item => {
+                const [name, center, radius] = item.trim().split(',');
+                const r = parseFloat(radius);
+                const c = points[center];
+                geometry.setExpression({
+                    id: getNextId('circle'),
+                    latex: name ? 
+                        `${name}=\\operatorname{circle}(${center},${r})` :
+                        `(x-${c.x})^2+(y-${c.y})^2=${r * r}`,
+                    color: Desmos.Colors.PURPLE
+                });
+            });
+        }
+        
+        // circle_3pt=name,p1,p2,p3
+        const circles3pt = params.get('circle_3pt');
+        if (circles3pt) {
+            circles3pt.split(';').forEach(item => {
+                const [name, p1, p2, p3] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('circle_3pt'),
+                    latex: `${name}=\\operatorname{circle}(${p1},${p2},${p3})`,
+                    color: Desmos.Colors.PURPLE
+                });
+            });
+        }
+        
+        // === POLYGONS ===
+        
+        // polygon=p1,p2,p3,...
+        const polygons = params.get('polygon');
+        if (polygons) {
+            polygons.split(';').forEach(item => {
+                const vertices = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('polygon'),
+                    latex: `\\operatorname{polygon}(${vertices.join(',')})`,
+                    fillOpacity: 0.2,
+                    color: Desmos.Colors.GREEN
+                });
+            });
+        }
+        
+        // triangle=p1,p2,p3
+        const triangles = params.get('triangle');
+        if (triangles) {
+            triangles.split(';').forEach(item => {
+                const [p1, p2, p3] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('triangle'),
+                    latex: `\\operatorname{polygon}(${p1},${p2},${p3})`,
+                    fillOpacity: 0.2,
+                    color: Desmos.Colors.GREEN
+                });
+            });
+        }
+        
+        // === TRIANGLE SPECIAL POINTS ===
+        
+        // centroid=name,p1,p2,p3
+        const centroids = params.get('centroid');
+        if (centroids) {
+            centroids.split(';').forEach(item => {
+                const [name, p1, p2, p3] = item.trim().split(',');
+                const c1 = points[p1], c2 = points[p2], c3 = points[p3];
+                const cx = (c1.x + c2.x + c3.x) / 3;
+                const cy = (c1.y + c2.y + c3.y) / 3;
+                geometry.setExpression({
+                    id: getNextId('centroid'),
+                    latex: `${name}=(${cx.toFixed(6)},${cy.toFixed(6)})`,
+                    label: name,
+                    showLabel: true,
+                    color: Desmos.Colors.ORANGE,
+                    pointStyle: Desmos.Styles.CROSS
+                });
+            });
+        }
+        
+        // === ANGLES ===
+        
+        // angle=p1,vertex,p2 (or name,p1,vertex,p2)
+        const angles = params.get('angle');
+        if (angles) {
+            angles.split(';').forEach(item => {
+                const parts = item.trim().split(',');
+                if (parts.length === 3) {
+                    const [p1, vertex, p2] = parts;
+                    geometry.setExpression({
+                        id: getNextId('angle'),
+                        latex: `\\angle ${p1}${vertex}${p2}`,
+                        color: Desmos.Colors.ORANGE
+                    });
+                } else if (parts.length === 4) {
+                    const [name, p1, vertex, p2] = parts;
+                    geometry.setExpression({
+                        id: getNextId('angle'),
+                        latex: `${name}=\\angle ${p1}${vertex}${p2}`,
+                        label: name,
+                        showLabel: true,
+                        color: Desmos.Colors.ORANGE
+                    });
+                }
+            });
+        }
+        
+        // right_angle=p1,vertex,p2
+        const rightAngles = params.get('right_angle');
+        if (rightAngles) {
+            rightAngles.split(';').forEach(item => {
+                const [p1, vertex, p2] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('right_angle'),
+                    latex: `\\angle ${p1}${vertex}${p2}`,
+                    color: Desmos.Colors.ORANGE
+                });
+            });
+        }
+        
+        // === ARCS ===
+        
+        // arc=name,center,p1,p2
+        const arcs = params.get('arc');
+        if (arcs) {
+            arcs.split(';').forEach(item => {
+                const [name, center, p1, p2] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('arc'),
+                    latex: name ? 
+                        `${name}=\\operatorname{arc}(${center},${p1},${p2})` :
+                        `\\operatorname{arc}(${center},${p1},${p2})`,
+                    color: Desmos.Colors.PURPLE
+                });
+            });
+        }
+        
+        // === CONIC SECTIONS ===
+        
+        // ellipse=name,center,a,b,angle
+        const ellipses = params.get('ellipse');
+        if (ellipses) {
+            ellipses.split(';').forEach(item => {
+                const [name, center, a, b, angle] = item.trim().split(',');
+                const c = points[center];
+                const A = parseFloat(a), B = parseFloat(b);
+                const theta = angle ? parseFloat(angle) * Math.PI / 180 : 0;
+                
+                geometry.setExpression({
+                    id: getNextId('ellipse'),
+                    latex: name ?
+                        `${name}=\\frac{((x-${c.x})\\cos(${theta})+(y-${c.y})\\sin(${theta}))^2}{${A*A}}+\\frac{((x-${c.x})\\sin(${theta})-(y-${c.y})\\cos(${theta}))^2}{${B*B}}=1` :
+                        `\\frac{((x-${c.x})\\cos(${theta})+(y-${c.y})\\sin(${theta}))^2}{${A*A}}+\\frac{((x-${c.x})\\sin(${theta})-(y-${c.y})\\cos(${theta}))^2}{${B*B}}=1`,
+                    color: Desmos.Colors.PURPLE
+                });
+            });
+        }
+        
+        // parabola=name,vertex,focus
+        const parabolas = params.get('parabola');
+        if (parabolas) {
+            parabolas.split(';').forEach(item => {
+                const [name, vertex, focus] = item.trim().split(',');
+                const v = points[vertex], f = points[focus];
+                const p = distance(v, f) / 2;
+                const vertical = Math.abs(f.x - v.x) < 0.001;
+                
+                if (vertical) {
+                    const dir = f.y > v.y ? 1 : -1;
+                    geometry.setExpression({
+                        id: getNextId('parabola'),
+                        latex: `(x-${v.x})^2=${4*p*dir}(y-${v.y})`,
+                        color: Desmos.Colors.BLUE
+                    });
+                } else {
+                    const dir = f.x > v.x ? 1 : -1;
+                    geometry.setExpression({
+                        id: getNextId('parabola'),
+                        latex: `(y-${v.y})^2=${4*p*dir}(x-${v.x})`,
+                        color: Desmos.Colors.BLUE
+                    });
+                }
+            });
+        }
+        
+        // === TRANSFORMATIONS ===
+        
+        // reflect=object,line
+        const reflections = params.get('reflect');
+        if (reflections) {
+            reflections.split(';').forEach(item => {
+                const [object, line] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('reflect'),
+                    latex: `\\operatorname{reflect}(${object},${line})`,
+                    color: Desmos.Colors.BLUE,
+                    lineStyle: Desmos.Styles.DASHED
+                });
+            });
+        }
+        
+        // rotate=object,center,degrees
+        const rotations = params.get('rotate');
+        if (rotations) {
+            rotations.split(';').forEach(item => {
+                const [object, center, degrees] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('rotate'),
+                    latex: `\\operatorname{rotate}(${object},${degrees}°,${center})`,
+                    color: Desmos.Colors.PURPLE,
+                    lineStyle: Desmos.Styles.DASHED
+                });
+            });
+        }
+        
+        // translate=object,dx,dy
+        const translations = params.get('translate');
+        if (translations) {
+            translations.split(';').forEach(item => {
+                const [object, dx, dy] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('translate'),
+                    latex: `\\operatorname{translate}(${object},(${dx},${dy}))`,
+                    color: Desmos.Colors.GREEN,
+                    lineStyle: Desmos.Styles.DASHED
+                });
+            });
+        }
+        
+        // dilate=object,center,scale
+        const dilations = params.get('dilate');
+        if (dilations) {
+            dilations.split(';').forEach(item => {
+                const [object, center, scale] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('dilate'),
+                    latex: `\\operatorname{dilate}(${object},${scale},${center})`,
+                    color: Desmos.Colors.RED,
+                    lineStyle: Desmos.Styles.DASHED
+                });
+            });
+        }
+        
+        // === MEASUREMENTS ===
+        
+        // measure_distance=p1,p2
+        const measureDistances = params.get('measure_distance');
+        if (measureDistances) {
+            measureDistances.split(';').forEach(item => {
+                const [p1, p2] = item.trim().split(',');
+                const c1 = points[p1], c2 = points[p2];
+                if (c1 && c2) {
+                    const dist = distance(c1, c2).toFixed(2);
+                    const midX = (c1.x + c2.x) / 2;
+                    const midY = (c1.y + c2.y) / 2;
+                    geometry.setExpression({
+                        id: getNextId('distance_label'),
+                        latex: `(${midX},${midY})`,
+                        label: `${dist}`,
+                        showLabel: true,
+                        pointStyle: Desmos.Styles.POINT,
+                        pointOpacity: 0,
+                        labelSize: Desmos.LabelSizes.SMALL
+                    });
+                }
+            });
+        }
+        
+        // measure_angle=vertex,p1,p2
+        const measureAngles = params.get('measure_angle');
+        if (measureAngles) {
+            measureAngles.split(';').forEach(item => {
+                const [vertex, p1, p2] = item.trim().split(',');
+                const v = points[vertex], a = points[p1], b = points[p2];
+                if (v && a && b) {
+                    const angle1 = Math.atan2(a.y - v.y, a.x - v.x);
+                    const angle2 = Math.atan2(b.y - v.y, b.x - v.x);
+                    let angleDeg = ((angle2 - angle1) * 180 / Math.PI) % 360;
+                    if (angleDeg < 0) angleDeg += 360;
+                    if (angleDeg > 180) angleDeg = 360 - angleDeg;
+                    
+                    geometry.setExpression({
+                        id: getNextId('angle_measure'),
+                        latex: `(${v.x},${v.y})`,
+                        label: `${angleDeg.toFixed(1)}°`,
+                        showLabel: true,
+                        pointOpacity: 0
+                    });
+                }
+            });
+        }
+        
+        // === TEXT & LABELS ===
+        
+        // text=x,y,content
+        const texts = params.get('text');
+        if (texts) {
+            texts.split(';').forEach(item => {
+                const parts = item.trim().split(',');
+                const x = parseFloat(parts[0]);
+                const y = parseFloat(parts[1]);
+                const content = parts.slice(2).join(',');
+                
+                geometry.setExpression({
+                    id: getNextId('text'),
+                    latex: `(${x},${y})`,
+                    label: content,
+                    showLabel: true,
+                    pointOpacity: 0
+                });
+            });
+        }
+        
+        // label_point=point,text
+        const labelPoints = params.get('label_point');
+        if (labelPoints) {
+            labelPoints.split(';').forEach(item => {
+                const [point, text] = item.trim().split(',');
+                geometry.setExpression({
+                    id: getNextId('label'),
+                    latex: point,
+                    label: text,
+                    showLabel: true
+                });
+            });
+        }
+        
+        // === NAVIGATION FEATURES ===
+        
+        // compass_rose=true
+        if (params.get('compass_rose') === 'true') {
+            const size = parseFloat(params.get('compass_size') || '1');
+            const pos = params.get('compass_pos') || '8,8';
+            const [cx, cy] = pos.split(',').map(parseFloat);
+            
+            // N, E, S, W markers
+            geometry.setExpression({
+                id: 'compass_n',
+                latex: `(${cx},${cy + size})`,
+                label: 'N',
+                showLabel: true,
+                pointOpacity: 0,
+                color: Desmos.Colors.BLACK
+            });
+            geometry.setExpression({
+                id: 'compass_e',
+                latex: `(${cx + size},${cy})`,
+                label: 'E',
+                showLabel: true,
+                pointOpacity: 0
+            });
+            geometry.setExpression({
+                id: 'compass_s',
+                latex: `(${cx},${cy - size})`,
+                label: 'S',
+                showLabel: true,
+                pointOpacity: 0
+            });
+            geometry.setExpression({
+                id: 'compass_w',
+                latex: `(${cx - size},${cy})`,
+                label: 'W',
+                showLabel: true,
+                pointOpacity: 0
+            });
+            
+            // Cross
+            geometry.setExpression({
+                id: 'compass_ns',
+                latex: `x=${cx}\\left\\{${cy - size}\\le y\\le${cy + size}\\right\\}`,
+                color: Desmos.Colors.BLACK
+            });
+            geometry.setExpression({
+                id: 'compass_ew',
+                latex: `y=${cy}\\left\\{${cx - size}\\le x\\le${cx + size}\\right\\}`,
+                color: Desmos.Colors.BLACK
+            });
+        }
+        
+        // bearing_label=point
+        const bearingLabels = params.get('bearing_label');
+        if (bearingLabels) {
+            bearingLabels.split(';').forEach(item => {
+                const point = item.trim();
+                const p = points[point];
+                if (p) {
+                    const bearing = coordsToBearing(p.x, p.y).toFixed(0);
+                    const dist = distance({x:0,y:0}, p).toFixed(2);
+                    geometry.setExpression({
+                        id: getNextId('bearing_label'),
+                        latex: `(${p.x * 0.5},${p.y * 0.5})`,
+                        label: `${bearing}° (${dist})`,
+                        showLabel: true,
+                        pointOpacity: 0,
+                        labelSize: Desmos.LabelSizes.SMALL
+                    });
+                }
+            });
+        }
+        
+        // === DISPLAY OPTIONS ===
+        
+        // Viewport
+        if (params.get('xmin')) {
+            geometry.setMathBounds({
+                left: parseFloat(params.get('xmin')),
+                right: parseFloat(params.get('xmax')),
+                bottom: parseFloat(params.get('ymin')),
+                top: parseFloat(params.get('ymax'))
+            });
+        }
+        
+        // Grid
+        if (params.get('grid') === 'false') {
+            geometry.updateSettings({ showGrid: false });
+        }
+        
+        // Axes
+        if (params.get('axes') === 'false') {
+            geometry.updateSettings({ 
+                xAxisNumbers: false, 
+                yAxisNumbers: false 
+            });
+        }
+        
+        // Lock aspect ratio
+        if (params.get('lock_aspect') === 'true') {
+            geometry.updateSettings({ lockViewport: true });
+        }
+        
+        // Show coordinates on all points
+        if (params.get('show_coordinates') === 'true') {
+            Object.entries(points).forEach(([name, p]) => {
+                geometry.setExpression({
+                    id: getNextId('coord_label'),
+                    latex: `(${p.x},${p.y + 0.5})`,
+                    label: `(${p.x.toFixed(2)}, ${p.y.toFixed(2)})`,
+                    showLabel: true,
+                    pointOpacity: 0,
+                    labelSize: Desmos.LabelSizes.SMALL
+                });
+            });
+        }
+        
+        console.log('Geometry tool loaded. Points:', points);
+        console.log('Available parameters: bearing, point, line, segment, ray, vector, circle, polygon, triangle, midpoint, perpendicular, parallel, perp_bisector, angle_bisector, centroid, angle, right_angle, arc, ellipse, parabola, reflect, rotate, translate, dilate, measure_distance, measure_angle, text, label_point, compass_rose, bearing_label');
+    </script>
+</body>
+</html>
