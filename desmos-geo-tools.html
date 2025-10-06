@@ -27,11 +27,11 @@
         // The base state object we will build upon
         const state = {
             version: 11,
+            graph: { degreeMode: false }, // Default to radians
             expressions: { list: [] }
         };
 
         if (config) {
-            // A map of feature names to the functions that create their state objects
             const featureMap = {
                 slider: (parts) => {
                     const [name, val, min, max, step] = parts;
@@ -42,34 +42,24 @@
                     };
                 },
                 point: (parts) => {
-                    const [name, x, y] = parts;
+                    const [name, ...coords] = parts;
                     return {
                         type: 'expression',
-                        latex: `${name}=(${x},${y})`,
+                        latex: `${name}=(${coords.join(',')})`,
                         showLabel: true
                     };
                 },
-                polygon: (parts) => {
-                    const pointNames = parts.join(',');
-                    return {
-                        type: 'expression',
-                        latex: `\\operatorname{polygon}(${pointNames})`,
-                        fillOpacity: 0.2
-                    };
-                },
-                // NOTE: A segment in the graphing calculator uses a parametric equation
                 segment: (parts) => {
                     const [p1, p2] = parts;
+                    // Note: Use _{} for subscripts with multiple characters
                     return {
                         type: 'expression',
                         latex: `((1-t)${p1}.x+t${p2}.x,(1-t)${p1}.y+t${p2}.y)`,
                         parametricDomain: { min: '0', max: '1' }
                     };
                 },
-                // For any other standard Desmos expression (lines, circles, etc.)
                 expression: (parts) => {
-                    const latex = parts.join(','); // Re-join in case of commas in the expression
-                    return { type: 'expression', latex: latex };
+                    return { type: 'expression', latex: parts.join(',') };
                 }
             };
 
@@ -77,15 +67,16 @@
             definitions.forEach(def => {
                 try {
                     const [feature, paramsStr] = def.split('=');
-                    const paramsArr = paramsStr.split(',');
                     
-                    let expressionObject;
-                    if (featureMap[feature]) {
-                        expressionObject = featureMap[feature](paramsArr);
-                    } else {
-                        // Default to a simple expression if feature name is not found
-                        expressionObject = featureMap['expression'](paramsArr);
+                    // Handle global settings separately
+                    if (feature === 'degree_mode') {
+                        state.graph.degreeMode = (paramsStr === 'true');
+                        return; // Go to the next definition
                     }
+                    
+                    const paramsArr = paramsStr.split(',');
+                    const handler = featureMap[feature] || featureMap['expression'];
+                    const expressionObject = handler(paramsArr);
                     state.expressions.list.push(expressionObject);
 
                 } catch (e) {
