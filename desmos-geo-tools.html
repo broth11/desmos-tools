@@ -45,9 +45,17 @@
 
         // === SLIDERS & DYNAMIC VARIABLES ===
 
+        // UPDATED SLIDER HANDLER
         processParameter('slider', (parts) => {
             const [name, val, min, max, step] = parts;
-            geometry.setExpression({ id: getNextId(`slider_${name}`), latex: `${name}=${val}`, slider: { min, max, step } });
+            // This new method combines the value and bounds into a single, robust LaTeX string.
+            // Note: \le is the LaTeX code for the <= symbol.
+            const latexString = `${name}=${val} \\{${min} \\le ${name} \\le ${max}\\}`;
+            geometry.setExpression({
+                id: getNextId(`slider_${name}`),
+                latex: latexString,
+                slider: { step: step } // The step can still be set here
+            });
         });
 
         processParameter('expression', (parts, originalItem) => {
@@ -61,9 +69,7 @@
             geometry.setExpression({ id: `point_${name}`, latex: `${name}=(${x},${y})`, label: name, showLabel: true, color: Desmos.Colors.RED });
         });
         
-        // gpoint=name,x_expr,y_expr (Dynamic points)
         processParameter('gpoint', (parts) => {
-            // Add a tiny delay to ensure slider variables are ready
             setTimeout(() => {
                 const [name, xExpr, yExpr] = parts;
                 geometry.setExpression({
@@ -73,7 +79,7 @@
                     showLabel: true,
                     color: Desmos.Colors.PURPLE
                 });
-            }, 10); // 10 millisecond delay
+            }, 10);
         });
 
         // === LINES, SEGMENTS, VECTORS ===
@@ -86,10 +92,8 @@
         // === GEOMETRIC CONSTRUCTIONS ===
         
         processParameter('midpoint', ([name, p1, p2]) => geometry.setExpression({ id: getNextId('midpoint'), latex: `${name}=\\operatorname{midpoint}(${p1},${p2})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE }));
-        
         processParameter('perpendicular', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('perp'), latex: `${name}=\\operatorname{perpendicular}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.GREEN }));
         processParameter('parallel', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('parallel'), latex: `${name}=\\operatorname{parallel}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.BLUE }));
-
         processParameter('perp_bisector', ([name, p1, p2]) => geometry.setExpression({ id: getNextId('p_bisector'), latex: `${name}=\\operatorname{perpendicularbisector}(${p1},${p2})`, color: Desmos.Colors.PURPLE }));
         processParameter('angle_bisector', ([name, p1, v, p2]) => geometry.setExpression({ id: getNextId('a_bisector'), latex: `${name}=\\operatorname{anglebisector}(${p1},${v},${p2})`, color: Desmos.Colors.ORANGE }));
         processParameter('centroid', ([name, p1, p2, p3]) => geometry.setExpression({ id: getNextId('centroid'), latex: `${name}=\\operatorname{centroid}(${p1},${p2},${p3})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE, pointStyle: Desmos.Styles.CROSS }));
