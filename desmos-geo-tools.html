@@ -45,16 +45,21 @@
 
         // === SLIDERS & DYNAMIC VARIABLES ===
 
-        // UPDATED SLIDER HANDLER
+        // UPDATED 2-STEP SLIDER HANDLER
         processParameter('slider', (parts) => {
             const [name, val, min, max, step] = parts;
-            // This new method combines the value and bounds into a single, robust LaTeX string.
-            // Note: \le is the LaTeX code for the <= symbol.
-            const latexString = `${name}=${val} \\{${min} \\le ${name} \\le ${max}\\}`;
+            const sliderId = `slider_${name}_${getNextId()}`;
+
+            // Step 1: Create the variable with its initial value.
             geometry.setExpression({
-                id: getNextId(`slider_${name}`),
-                latex: latexString,
-                slider: { step: step } // The step can still be set here
+                id: sliderId,
+                latex: `${name}=${val}`
+            });
+
+            // Step 2: Immediately update the same expression to apply the slider bounds.
+            geometry.setExpression({
+                id: sliderId,
+                slider: { min: min, max: max, step: step }
             });
         });
 
@@ -101,7 +106,7 @@
         // === SHAPES & CURVES ===
         
         processParameter('polygon', (parts) => geometry.setExpression({ id: getNextId('polygon'), latex: `\\operatorname{polygon}(${parts.join(',')})`, fillOpacity: 0.2, color: Desmos.Colors.GREEN }));
-        processParameter('circle', ([name, center, radius]) => geometry.setExpression({ id: getNextId('circle'), latex: `${name}=\\operatorname{circle}(${center},${radius})`, color: Desmos.Colors.PURPLE }));
+        processParameter('circle', ([name, center, radius]) => geometry.setExpression({ id: getNextId('circle'), latex: `\\operatorname{circle}(${center},${radius})`, color: Desmos.Colors.PURPLE }));
         processParameter('parabola', ([name, vertex, focus]) => geometry.setExpression({ id: getNextId('parabola'), latex: `${name}=\\operatorname{parabola}(${vertex},${focus})`, color: Desmos.Colors.BLUE }));
 
         // === ANGLES & TRANSFORMATIONS ===
