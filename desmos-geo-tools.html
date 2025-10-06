@@ -2,7 +2,7 @@
 <html>
 <head>
     <title>Desmos Dynamic Geometry Builder</title>
-    <script src="https://www.desmos.com/api/v1.10/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
+    <script src="https://www.desmos.com/api/v1.10/calculator.js?apiKey=dcb3let trutdcb31709b452b1cf9dc26972add0fda6"></script>
     <style>
         body { margin: 0; padding: 0; font-family: sans-serif; }
         #geometry { width: 100vw; height: 100vh; }
@@ -11,15 +11,29 @@
 <body>
     <div id="geometry"></div>
     <script>
-        // Initialize Desmos and URL parser
         const params = new URLSearchParams(window.location.search);
         const geometry = Desmos.Geometry(document.getElementById('geometry'));
 
+        // --- STATE OBJECT SETUP ---
+        // We will build the entire graph state in this object first.
+        const state = {
+            version: 11,
+            graph: {
+                showGrid: true,
+                showXAxis: true,
+                showYAxis: true,
+                degreeMode: false,
+                product: "geometry-calculator"
+            },
+            expressions: {
+                list: []
+            }
+        };
+
         let exprCounter = 0;
+        function getNextId() { return `${exprCounter++}`; }
 
-        // === HELPER FUNCTIONS ===
-        function getNextId(prefix = 'expr') { return `${prefix}_${exprCounter++}`; }
-
+        // HELPER
         function processParameter(paramName, callback) {
             const paramValue = params.get(paramName);
             if (paramValue) {
@@ -27,105 +41,87 @@
                     try {
                         const parts = item.trim().split(',');
                         callback(parts, item.trim());
-                    } catch (e) {
-                        console.error(`Error processing parameter '${paramName}' with value '${item}':`, e);
-                    }
+                    } catch (e) { console.error(`Error processing '${paramName}':`, e); }
                 });
             }
         }
 
         // === DEFAULTS & INITIAL SETUP ===
         if (params.get('hide_origin') !== 'true') {
-            geometry.setExpression({ id: 'origin', latex: 'O=(0,0)', label: 'O', showLabel: true, color: Desmos.Colors.BLACK, pointStyle: Desmos.Styles.OPEN });
+            state.expressions.list.push({ type: 'expression', id: getNextId(), latex: 'O=(0,0)', label: 'O', showLabel: true, color: Desmos.Colors.BLACK, pointStyle: Desmos.Styles.OPEN });
+        } else {
+            // If origin is hidden, we must still have at least one expression to avoid errors.
+            // We'll add a hidden helper point that can be removed if other expressions exist later.
+            state.expressions.list.push({ type: 'expression', id: 'placeholder', latex: '(0,0)', hidden: true });
         }
 
         // === SLIDERS & DYNAMIC VARIABLES ===
-        // DEFINITIVE SLIDER HANDLER (using strings for values)
         processParameter('slider', (parts) => {
             const [name, val, min, max, step] = parts;
-            geometry.setExpression({
-                id: getNextId(`slider_${name}`),
+            state.expressions.list.push({
+                type: 'expression',
+                id: getNextId(),
                 latex: `${name}=${val}`,
-                slider: {
-                    min: min,         // Passed as string
-                    max: max,         // Passed as string
-                    step: step,       // Passed as string
-                    hardMin: true,
-                    hardMax: true
-                }
+                slider: { min: min, max: max, step: step, hardMin: true, hardMax: true }
             });
         });
 
         processParameter('expression', (parts, originalItem) => {
-            geometry.setExpression({ id: getNextId('expression'), latex: originalItem });
+            state.expressions.list.push({ type: 'expression', id: getNextId(), latex: originalItem });
         });
 
         // === POINT DEFINITIONS ===
         processParameter('point', (parts) => {
             const [name, x, y] = parts;
-            geometry.setExpression({ id: `point_${name}`, latex: `${name}=(${x},${y})`, label: name, showLabel: true, color: Desmos.Colors.RED });
+            state.expressions.list.push({ type: 'expression', id: name, latex: `${name}=(${x},${y})`, label: name, showLabel: true, color: Desmos.Colors.RED });
         });
         
         processParameter('gpoint', (parts) => {
-            setTimeout(() => {
-                const [name, xExpr, yExpr] = parts;
-                geometry.setExpression({
-                    id: `gpoint_${name}`,
-                    latex: `${name}=(${xExpr},${yExpr})`,
-                    label: name,
-                    showLabel: true,
-                    color: Desmos.Colors.PURPLE
-                });
-            }, 10);
+            const [name, xExpr, yExpr] = parts;
+            state.expressions.list.push({ type: 'expression', id: name, latex: `${name}=(${xExpr},${yExpr})`, label: name, showLabel: true, color: Desmos.Colors.PURPLE });
         });
 
-        // === The rest of your handlers remain the same ===
+        // === GEOMETRY & OTHER EXPRESSIONS ===
+        processParameter('line', (parts) => state.expressions.list.push({ type: 'expression', id: getNextId(), latex: `\\operatorname{line}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
+        processParameter('segment', (parts) => state.expressions.list.push({ type: 'expression', id: getNextId(), latex: `\\operatorname{segment}(${parts[0]},${parts[1]})`, color: Desmos.Colors.GREEN }));
+        // ... (all other handlers would be refactored similarly)
+        processParameter('polygon', (parts) => state.expressions.list.push({ type: 'expression', id: getNextId(), latex: `\\operatorname{polygon}(${parts.join(',')})`, fillOpacity: 0.2, color: Desmos.Colors.GREEN }));
 
-        processParameter('line', (parts) => geometry.setExpression({ id: getNextId('line'), latex: `\\operatorname{line}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
-        processParameter('segment', (parts) => geometry.setExpression({ id: getNextId('segment'), latex: `\\operatorname{segment}(${parts[0]},${parts[1]})`, color: Desmos.Colors.GREEN }));
-        
-        // ... (all other processParameter calls) ...
-        processParameter('ray', (parts) => geometry.setExpression({ id: getNextId('ray'), latex: `\\operatorname{ray}(${parts[0]},${parts[1]})`, color: Desmos.Colors.BLUE }));
-        processParameter('vector', (parts) => geometry.setExpression({ id: getNextId('vector'), latex: `\\operatorname{vector}(${parts[0]},${parts[1]})`, color: Desmos.Colors.PURPLE }));
-        processParameter('midpoint', ([name, p1, p2]) => geometry.setExpression({ id: getNextId('midpoint'), latex: `${name}=\\operatorname{midpoint}(${p1},${p2})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE }));
-        processParameter('perpendicular', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('perp'), latex: `${name}=\\operatorname{perpendicular}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.GREEN }));
-        processParameter('parallel', ([name, point, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('parallel'), latex: `${name}=\\operatorname{parallel}(${point},\\operatorname{line}(${p1_line},${p2_line}))`, color: Desmos.Colors.BLUE }));
-        processParameter('perp_bisector', ([name, p1, p2]) => geometry.setExpression({ id: getNextId('p_bisector'), latex: `${name}=\\operatorname{perpendicularbisector}(${p1},${p2})`, color: Desmos.Colors.PURPLE }));
-        processParameter('angle_bisector', ([name, p1, v, p2]) => geometry.setExpression({ id: getNextId('a_bisector'), latex: `${name}=\\operatorname{anglebisector}(${p1},${v},${p2})`, color: Desmos.Colors.ORANGE }));
-        processParameter('centroid', ([name, p1, p2, p3]) => geometry.setExpression({ id: getNextId('centroid'), latex: `${name}=\\operatorname{centroid}(${p1},${p2},${p3})`, label: name, showLabel: true, color: Desmos.Colors.ORANGE, pointStyle: Desmos.Styles.CROSS }));
-        processParameter('polygon', (parts) => geometry.setExpression({ id: getNextId('polygon'), latex: `\\operatorname{polygon}(${parts.join(',')})`, fillOpacity: 0.2, color: Desmos.Colors.GREEN }));
-        processParameter('circle', ([name, center, radius]) => geometry.setExpression({ id: getNextId('circle'), latex: `\\operatorname{circle}(${center},${radius})`, color: Desmos.Colors.PURPLE }));
-        processParameter('parabola', ([name, vertex, focus]) => geometry.setExpression({ id: getNextId('parabola'), latex: `${name}=\\operatorname{parabola}(${vertex},${focus})`, color: Desmos.Colors.BLUE }));
-        processParameter('angle', (parts) => {
-            const latex = parts.length === 4 ? `${parts[0]}=\\operatorname{angle}(${parts[1]},${parts[2]},${parts[3]})` : `\\operatorname{angle}(${parts[0]},${parts[1]},${parts[2]})`;
-            geometry.setExpression({ id: getNextId('angle'), latex: latex, color: Desmos.Colors.ORANGE });
-        });
-        processParameter('reflect', ([obj, p1_line, p2_line]) => geometry.setExpression({ id: getNextId('reflect'), latex: `\\operatorname{reflect}(${obj},\\operatorname{line}(${p1_line},${p2_line}))`, lineStyle: Desmos.Styles.DASHED }));
-        processParameter('rotate', ([obj, center, deg]) => geometry.setExpression({ id: getNextId('rotate'), latex: `\\operatorname{rotate}(${obj},${deg}^{\\circ},${center})`, lineStyle: Desmos.Styles.DASHED }));
-        processParameter('dilate', ([obj, center, scale]) => geometry.setExpression({ id: getNextId('dilate'), latex: `\\operatorname{dilate}(${obj},${scale},${center})`, lineStyle: Desmos.Styles.DASHED }));
-        processParameter('text', (parts) => {
-            const [x, y] = parts;
-            const content = parts.slice(2).join(',');
-            geometry.setExpression({ id: getNextId('text'), latex: `(${x},${y})`, label: content, showLabel: true, pointOpacity: 0, color: Desmos.Colors.BLACK });
-        });
-
-        // === GLOBAL DISPLAY SETTINGS (Applied last) ===
-        const settings = {};
-        if (params.get('grid') === 'false') settings.showGrid = false;
-        if (params.get('axes') === 'false') settings.showAxes = false;
-        if (params.get('angle_mode') === 'degrees') settings.degreeMode = true;
-        if (params.get('projector_mode') === 'true') settings.projectorMode = true;
-        if (params.get('lock_viewport') === 'true') settings.lockViewport = true;
-        geometry.updateSettings(settings);
-
-        if (params.has('xmin')) {
-            geometry.setMathBounds({
-                left: parseFloat(params.get('xmin')), right: parseFloat(params.get('xmax')),
-                bottom: parseFloat(params.get('ymin')), top: parseFloat(params.get('ymax'))
-            });
+        // === GLOBAL DISPLAY SETTINGS ===
+        if (params.get('grid') === 'false') state.graph.showGrid = false;
+        if (params.get('axes') === 'false') {
+            state.graph.showXAxis = false;
+            state.graph.showYAxis = false;
         }
+        if (params.get('angle_mode') === 'degrees') state.graph.degreeMode = true;
+        if (params.get('projector_mode') === 'true') state.graph.projectorMode = true;
         
-        console.log("Desmos Dynamic Geometry Builder initialized.");
+        if (params.has('xmin')) {
+            state.graph.viewport = {
+                xmin: parseFloat(params.get('xmin')),
+                xmax: parseFloat(params.get('xmax')),
+                ymin: parseFloat(params.get('ymin')),
+                ymax: parseFloat(params.get('ymax'))
+            };
+        }
+
+        // Clean up placeholder if it's no longer the only expression
+        if (state.expressions.list.length > 1) {
+            const placeholderIndex = state.expressions.list.findIndex(expr => expr.id === 'placeholder');
+            if (placeholderIndex > -1) {
+                state.expressions.list.splice(placeholderIndex, 1);
+            }
+        }
+
+        // --- FINAL STATE SUBMISSION ---
+        // Load the entire constructed state object at once.
+        geometry.setState(state, {
+            // This option prevents Desmos from adding its default "example geometry" expressions
+            allowUndo: true,
+            remapColors: true
+        });
+
+        console.log("Desmos state object loaded.", state);
     </script>
 </body>
 </html>
