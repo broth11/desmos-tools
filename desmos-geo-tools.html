@@ -61,7 +61,13 @@
                 type: 'expression',
                 id: getNextId(),
                 latex: `${name}=${val}`,
-                slider: { min: min, max: max, step: step, hardMin: true, hardMax: true }
+                slider: { 
+                    min: String(min), 
+                    max: String(max), 
+                    step: String(step), 
+                    hardMin: true, 
+                    hardMax: true 
+                }
             });
         });
 
