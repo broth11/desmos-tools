@@ -45,21 +45,17 @@
 
         // === SLIDERS & DYNAMIC VARIABLES ===
 
-        // UPDATED 2-STEP SLIDER HANDLER
+        // FINAL SLIDER HANDLER using parseFloat
         processParameter('slider', (parts) => {
             const [name, val, min, max, step] = parts;
-            const sliderId = `slider_${name}_${getNextId()}`;
-
-            // Step 1: Create the variable with its initial value.
             geometry.setExpression({
-                id: sliderId,
-                latex: `${name}=${val}`
-            });
-
-            // Step 2: Immediately update the same expression to apply the slider bounds.
-            geometry.setExpression({
-                id: sliderId,
-                slider: { min: min, max: max, step: step }
+                id: getNextId(`slider_${name}`),
+                latex: `${name}=${parseFloat(val)}`,
+                slider: {
+                    min: parseFloat(min),
+                    max: parseFloat(max),
+                    step: parseFloat(step)
+                }
             });
         });
 
